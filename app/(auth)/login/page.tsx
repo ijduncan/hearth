@@ -11,19 +11,24 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const detail = params.get("detail");
+      const err = params.get("error");
+      if (detail) return `Auth error: ${detail}`;
+      if (err === "unauthorized") return "This email is not authorised to use Hearth.";
+      if (err) return `Authentication failed (${err}). Please try again.`;
+    }
+    return "";
+  });
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
 
-    const allowedEmails = process.env.NEXT_PUBLIC_ALLOWED_EMAILS?.split(",") || [];
-    if (allowedEmails.length > 0 && !allowedEmails.includes(email.toLowerCase().trim())) {
-      setError("This email is not authorised to use Hearth.");
-      setLoading(false);
-      return;
-    }
+    // Server-side ALLOWED_EMAILS check happens in the callback
 
     const supabase = createClient();
     const { error: authError } = await supabase.auth.signInWithOtp({
