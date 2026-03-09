@@ -1,0 +1,121 @@
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { generateAcknowledgment } from "@/lib/claude";
+
+export async function GET() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { data, error } = await supabase
+    .from("entries")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("entry_date", { ascending: false });
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json(data);
+}
+
+export async function POST(request: Request) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = await request.json();
+
+  // Get profile for display name
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("display_name, streak_count, last_entry_date")
+    .eq("id", user.id)
+    .single();
+
+  // Upsert entry (one per user per day)
+  const { data: entry, error } = await supabase
+    .from("entries")
+    .upsert(
+      {
+        user_id: user.id,
+        entry_date: new Date().toISOString().split("T")[0],
+        mood_score: body.mood_score,
+        mood_label: body.mood_label,
+        mood_tags: body.mood_tags,
+        prompt_question: body.prompt_question,
+        prompt_answer: body.prompt_answer,
+        highlight: body.highlight,
+        challenge: body.challenge,
+        free_write: body.free_write,
+        word_count: body.word_count,
+        entry_duration_seconds: body.entry_duration_seconds,
+        voice_used: body.voice_used ?? false,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,entry_date" }
+    )
+    .select()
+    .single();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Generate AI acknowledgment
+  let aiAcknowledgment = "";
+  try {
+    aiAcknowledgment = await generateAcknowledgment(
+      {
+        mood_score: body.mood_score,
+        mood_label: body.mood_label,
+        prompt_question: body.prompt_question,
+        prompt_answer: body.prompt_answer,
+        highlight: body.highlight,
+        challenge: body.challenge,
+        free_write: body.free_write,
+      },
+      profile?.display_name || "friend"
+    );
+
+    // Save acknowledgment back to entry
+    await supabase
+      .from("entries")
+      .update({
+        ai_acknowledgment: aiAcknowledgment,
+        ai_generated_at: new Date().toISOString(),
+      })
+      .eq("id", entry.id);
+  } catch {
+    // AI generation failed — entry is still saved
+  }
+
+  // Update streak
+  const today = new Date().toISOString().split("T")[0];
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+  let newStreak = 1;
+
+  if (profile?.last_entry_date === yesterday) {
+    newStreak = (profile.streak_count || 0) + 1;
+  } else if (profile?.last_entry_date === today) {
+    newStreak = profile.streak_count || 1;
+  }
+
+  await supabase
+    .from("profiles")
+    .update({ streak_count: newStreak, last_entry_date: today })
+    .eq("id", user.id);
+
+  return NextResponse.json({
+    entry,
+    ai_acknowledgment: aiAcknowledgment,
+    streak_count: newStreak,
+  });
+}

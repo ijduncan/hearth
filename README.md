@@ -1,36 +1,129 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Hearth
+
+A private, self-hosted AI journaling app for couples or small households.
+Built with Next.js 14, Supabase, and Claude.
+
+**Core philosophy:** Two minutes. Three questions. No blank page. An AI that listens — not lectures.
+
+## Features
+
+- Daily mood tracking with visual slider (1-10, colour-coded)
+- Three-question guided entry + free write
+- 120+ rotating prompts — same prompt for all users each day (conversation starter)
+- AI acknowledgment after each entry — warm, specific, never advice-giving
+- Weekly AI-written pattern summaries
+- Mood trend charts + streak tracking
+- Voice-to-text input (Web Speech API)
+- Calendar history view with full-text search
+- Mood tag analytics (which tags correlate with high/low mood)
+- Private by design — no analytics, no ads, no tracking
+
+## Tech Stack
+
+| Layer | Choice |
+|---|---|
+| Framework | Next.js 14 (App Router) |
+| Database | Supabase (Postgres + Auth) |
+| AI | Anthropic Claude API |
+| Styling | Tailwind CSS + shadcn/ui |
+| Charts | Recharts |
+| Motion | Framer Motion |
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- Node.js 20+
+- A [Supabase](https://supabase.com) project (free tier works)
+- An [Anthropic API key](https://console.anthropic.com)
+
+### Setup
+
+1. Clone the repo:
+   ```bash
+   git clone https://github.com/your-username/hearth.git
+   cd hearth
+   npm install
+   ```
+
+2. Copy environment variables:
+   ```bash
+   cp .env.example .env.local
+   ```
+
+3. Fill in your `.env.local`:
+   - `NEXT_PUBLIC_SUPABASE_URL` — from Supabase dashboard
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — from Supabase dashboard
+   - `SUPABASE_SERVICE_ROLE_KEY` — from Supabase dashboard (Settings > API)
+   - `ANTHROPIC_API_KEY` — from Anthropic console
+   - `ALLOWED_EMAILS` — comma-separated list of allowed email addresses
+   - `CRON_SECRET` — any random string for cron job auth
+
+4. Run the database migration:
+   - Go to Supabase Dashboard > SQL Editor
+   - Paste and run `supabase/migrations/001_initial.sql`
+
+5. Start the dev server:
+   ```bash
+   npm run dev
+   ```
+
+6. Visit `http://localhost:3000` and log in with a magic link.
+
+### Restricting Access
+
+Set `ALLOWED_EMAILS` in your environment to restrict who can sign up:
+```
+ALLOWED_EMAILS=ian@example.com,juliet@example.com
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+After your accounts are created, you can also disable new signups in the Supabase Dashboard under Authentication > Settings.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Deploying to Vercel
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Push to GitHub
+2. Import project in [Vercel](https://vercel.com)
+3. Add all environment variables from `.env.example`
+4. Deploy
 
-## Learn More
+The weekly summary cron job runs automatically on Sundays at 7:00 AM UTC (configured in `vercel.json`).
 
-To learn more about Next.js, take a look at the following resources:
+## Self-Hosting with Docker
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+docker compose up -d
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Note: You'll still need a Supabase instance (cloud or [self-hosted](https://supabase.com/docs/guides/self-hosting)).
 
-## Deploy on Vercel
+## Project Structure
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```
+app/
+  (auth)/login/     — Magic link login
+  (app)/            — Main app shell
+    page.tsx        — Today's entry
+    history/        — Calendar + search
+    insights/       — Mood charts + AI summary
+    settings/       — Profile settings
+  api/
+    entries/        — CRUD for journal entries
+    ai/reflect/     — AI acknowledgment generation
+    ai/summary/     — Weekly AI summary generation
+    cron/           — Cron job endpoints
+components/
+  journal/          — Entry form, mood slider, voice input
+  insights/         — Charts, history, summary
+lib/
+  supabase/         — Supabase client/server/middleware
+  claude.ts         — Anthropic API wrapper
+  prompts.ts        — 120+ rotating prompts
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Contributing
+
+PRs welcome. This was built for a family of two but designed for anyone.
+
+## License
+
+MIT
