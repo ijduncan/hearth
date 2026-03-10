@@ -18,6 +18,7 @@ export default function SettingsPage() {
   const [displayName, setDisplayName] = useState("");
   const [avatarEmoji, setAvatarEmoji] = useState("🌿");
   const [reminderTime, setReminderTime] = useState("20:00");
+  const [timezone, setTimezone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
 
   useEffect(() => {
     const load = async () => {
@@ -36,6 +37,7 @@ export default function SettingsPage() {
         setDisplayName(data.display_name);
         setAvatarEmoji(data.avatar_emoji);
         setReminderTime(data.reminder_time || "20:00");
+        setTimezone(data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone);
       }
       setLoading(false);
     };
@@ -52,6 +54,7 @@ export default function SettingsPage() {
         display_name: displayName,
         avatar_emoji: avatarEmoji,
         reminder_time: reminderTime,
+        timezone: timezone,
       })
       .eq("id", profile.id);
     setSaving(false);
@@ -112,6 +115,25 @@ export default function SettingsPage() {
             />
             <p className="text-xs text-muted-foreground">
               When you&apos;d like to be reminded to journal (notification support coming soon)
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="timezone">Timezone</Label>
+            <select
+              id="timezone"
+              value={timezone}
+              onChange={(e) => setTimezone(e.target.value)}
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              {Intl.supportedValuesOf("timeZone").map((tz) => (
+                <option key={tz} value={tz}>
+                  {tz.replace(/_/g, " ")}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">
+              Used to determine your local date for journal entries
             </p>
           </div>
 

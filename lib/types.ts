@@ -5,6 +5,7 @@ export interface Profile {
   streak_count: number;
   last_entry_date: string | null;
   reminder_time: string;
+  timezone: string;
   created_at: string;
 }
 
