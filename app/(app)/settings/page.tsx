@@ -124,10 +124,10 @@ export default function SettingsPage() {
               id="timezone"
               value={timezone}
               onChange={(e) => setTimezone(e.target.value)}
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              className="flex h-9 w-full rounded-md border border-input bg-background text-foreground px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
               {Intl.supportedValuesOf("timeZone").map((tz) => (
-                <option key={tz} value={tz}>
+                <option key={tz} value={tz} className="bg-background text-foreground">
                   {tz.replace(/_/g, " ")}
                 </option>
               ))}
