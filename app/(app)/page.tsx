@@ -1,8 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { getTodaysPrompt } from "@/lib/prompts";
-import { EntryForm } from "@/components/journal/EntryForm";
-import { format } from "date-fns";
+import { TodayClient } from "@/components/journal/TodayClient";
 
 export default async function TodayPage() {
   const supabase = await createClient();
@@ -16,32 +14,18 @@ export default async function TodayPage() {
     .eq("id", user.id)
     .single();
 
-  const today = format(new Date(), "yyyy-MM-dd");
-
-  const { data: existingEntry } = await supabase
+  // Fetch recent entries so client can match by local date
+  const { data: recentEntries } = await supabase
     .from("entries")
     .select("*")
     .eq("user_id", user.id)
-    .eq("entry_date", today)
-    .single();
-
-  const todaysPrompt = getTodaysPrompt();
+    .order("entry_date", { ascending: false })
+    .limit(3);
 
   return (
-    <div className="space-y-6">
-      <div className="text-center space-y-1">
-        <h1 className="text-2xl font-serif font-semibold">
-          Good evening{profile?.display_name ? `, ${profile.display_name}` : ""}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {format(new Date(), "EEEE, MMMM d")}
-        </p>
-      </div>
-      <EntryForm
-        todaysPrompt={todaysPrompt}
-        existingEntry={existingEntry}
-        profileName={profile?.display_name || "friend"}
-      />
-    </div>
+    <TodayClient
+      profile={profile}
+      recentEntries={recentEntries || []}
+    />
   );
 }

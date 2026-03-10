@@ -72,6 +72,7 @@ export function EntryForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          entry_date: new Date().toLocaleDateString("en-CA"), // YYYY-MM-DD in local tz
           mood_score: moodScore,
           mood_label: getMoodLabelLocal(moodScore),
           mood_tags: moodTags,

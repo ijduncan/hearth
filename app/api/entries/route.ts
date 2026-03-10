@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     .upsert(
       {
         user_id: user.id,
-        entry_date: new Date().toISOString().split("T")[0],
+        entry_date: body.entry_date || new Date().toISOString().split("T")[0],
         mood_score: body.mood_score,
         mood_label: body.mood_label,
         mood_tags: body.mood_tags,
@@ -98,14 +98,16 @@ export async function POST(request: Request) {
   }
 
   // Update streak
-  const today = new Date().toISOString().split("T")[0];
-  const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+  const today = body.entry_date || new Date().toISOString().split("T")[0];
+  const yesterdayDate = new Date(today + "T00:00:00");
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+  const yesterday = yesterdayDate.toISOString().split("T")[0];
   let newStreak = 1;
 
   if (profile?.last_entry_date === yesterday) {
     newStreak = (profile.streak_count || 0) + 1;
   } else if (profile?.last_entry_date === today) {
-    newStreak = profile.streak_count || 1;
+    newStreak = profile?.streak_count || 1;
   }
 
   await supabase
