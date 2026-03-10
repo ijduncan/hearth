@@ -203,7 +203,7 @@ export function HistoryView({ entries }: HistoryViewProps) {
         open={!!selectedEntry}
         onOpenChange={(open) => !open && setSelectedEntry(null)}
       >
-        <SheetContent className="overflow-y-auto">
+        <SheetContent className="overflow-y-auto px-6">
           {selectedEntry && (
             <>
               <SheetHeader>
