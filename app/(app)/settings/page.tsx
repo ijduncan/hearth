@@ -18,7 +18,7 @@ export default function SettingsPage() {
   const [displayName, setDisplayName] = useState("");
   const [avatarEmoji, setAvatarEmoji] = useState("🌿");
   const [reminderTime, setReminderTime] = useState("20:00");
-  const [timezone, setTimezone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
+  const [timezone, setTimezone] = useState(() => "America/Los_Angeles");
 
   useEffect(() => {
     const load = async () => {
@@ -37,7 +37,7 @@ export default function SettingsPage() {
         setDisplayName(data.display_name);
         setAvatarEmoji(data.avatar_emoji);
         setReminderTime(data.reminder_time || "20:00");
-        setTimezone(data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone);
+        setTimezone(data.timezone || "America/Los_Angeles");
       }
       setLoading(false);
     };

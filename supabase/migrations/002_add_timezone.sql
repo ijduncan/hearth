@@ -1,1 +1,1 @@
-alter table profiles add column timezone text default 'Australia/Sydney';
+alter table profiles add column timezone text default 'America/Los_Angeles';
