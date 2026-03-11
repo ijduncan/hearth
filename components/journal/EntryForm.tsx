@@ -16,6 +16,8 @@ interface EntryFormProps {
   todaysPrompt: Prompt;
   existingEntry: Entry | null;
   profileName: string;
+  entryDate?: string; // YYYY-MM-DD, defaults to today
+  onSaved?: () => void;
 }
 
 type Step = "mood" | "questions" | "freewrite" | "submitting" | "done";
@@ -24,6 +26,8 @@ export function EntryForm({
   todaysPrompt,
   existingEntry,
   profileName,
+  entryDate,
+  onSaved,
 }: EntryFormProps) {
   const [step, setStep] = useState<Step>(existingEntry ? "done" : "mood");
   const [moodScore, setMoodScore] = useState(existingEntry?.mood_score || 5);
@@ -72,7 +76,7 @@ export function EntryForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          entry_date: new Date().toLocaleDateString("en-CA"), // YYYY-MM-DD in local tz
+          entry_date: entryDate || new Date().toLocaleDateString("en-CA"), // YYYY-MM-DD in local tz
           mood_score: moodScore,
           mood_label: getMoodLabelLocal(moodScore),
           mood_tags: moodTags,
@@ -93,6 +97,7 @@ export function EntryForm({
       setAiAcknowledgment(data.ai_acknowledgment || "");
       setStreakCount(data.streak_count || 0);
       setStep("done");
+      onSaved?.();
     } catch {
       // Allow retry
       setStep("freewrite");
@@ -112,9 +117,15 @@ export function EntryForm({
           <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-mood-high/10">
             <Check className="h-6 w-6 text-mood-high" />
           </div>
-          <h2 className="text-xl font-serif">Today&apos;s entry is saved</h2>
+          <h2 className="text-xl font-serif">
+            {entryDate && entryDate !== new Date().toLocaleDateString("en-CA")
+              ? "Entry saved"
+              : "Today\u0027s entry is saved"}
+          </h2>
           <p className="text-sm text-muted-foreground">
-            Come back tomorrow evening.
+            {entryDate && entryDate !== new Date().toLocaleDateString("en-CA")
+              ? "Nice work catching up."
+              : "Come back tomorrow evening."}
           </p>
         </div>
         {aiAcknowledgment && (

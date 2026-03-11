@@ -8,9 +8,11 @@ import {
   endOfMonth,
   eachDayOfInterval,
   isSameDay,
+  isBefore,
   addMonths,
   subMonths,
   getDay,
+  startOfDay,
 } from "date-fns";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -24,15 +26,20 @@ import {
 } from "@/components/ui/sheet";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { getMoodColor, MOOD_TAGS } from "@/lib/types";
+import { getTodaysPrompt } from "@/lib/prompts";
+import { EntryForm } from "@/components/journal/EntryForm";
 import type { Entry } from "@/lib/types";
 
 interface HistoryViewProps {
   entries: Entry[];
+  profileName?: string;
+  onEntrySaved?: () => void;
 }
 
-export function HistoryView({ entries }: HistoryViewProps) {
+export function HistoryView({ entries, profileName = "friend", onEntrySaved }: HistoryViewProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedEntry, setSelectedEntry] = useState<Entry | null>(null);
+  const [catchUpDate, setCatchUpDate] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterTag, setFilterTag] = useState<string | null>(null);
 
@@ -135,14 +142,22 @@ export function HistoryView({ entries }: HistoryViewProps) {
               const dateStr = format(day, "yyyy-MM-dd");
               const entry = entryMap.get(dateStr);
               const isToday = isSameDay(day, new Date());
+              const isPast = isBefore(startOfDay(day), startOfDay(new Date()));
+              const isMissed = !entry && isPast;
 
               return (
                 <button
                   key={dateStr}
-                  onClick={() => entry && setSelectedEntry(entry)}
+                  onClick={() => {
+                    if (entry) {
+                      setSelectedEntry(entry);
+                    } else if (isMissed) {
+                      setCatchUpDate(dateStr);
+                    }
+                  }}
                   className={`relative h-10 rounded-md text-sm flex items-center justify-center transition-colors ${
                     isToday ? "ring-1 ring-primary" : ""
-                  } ${entry ? "hover:bg-muted cursor-pointer" : "text-muted-foreground"}`}
+                  } ${entry ? "hover:bg-muted cursor-pointer" : isMissed ? "hover:bg-muted/50 cursor-pointer text-muted-foreground" : "text-muted-foreground/40"}`}
                 >
                   {format(day, "d")}
                   {entry && entry.mood_score && (
@@ -150,6 +165,9 @@ export function HistoryView({ entries }: HistoryViewProps) {
                       className="absolute bottom-1 h-1.5 w-1.5 rounded-full"
                       style={{ backgroundColor: getMoodColor(entry.mood_score) }}
                     />
+                  )}
+                  {isMissed && (
+                    <span className="absolute bottom-1 h-1.5 w-1.5 rounded-full bg-muted-foreground/30" />
                   )}
                 </button>
               );
@@ -197,6 +215,36 @@ export function HistoryView({ entries }: HistoryViewProps) {
           ))}
         </div>
       )}
+
+      {/* Catch-up entry drawer */}
+      <Sheet
+        open={!!catchUpDate}
+        onOpenChange={(open) => !open && setCatchUpDate(null)}
+      >
+        <SheetContent className="overflow-y-auto px-6">
+          {catchUpDate && (
+            <>
+              <SheetHeader>
+                <SheetTitle className="font-serif">
+                  {format(parseISO(catchUpDate), "EEEE, MMMM d")}
+                </SheetTitle>
+              </SheetHeader>
+              <div className="mt-6">
+                <EntryForm
+                  todaysPrompt={getTodaysPrompt(parseISO(catchUpDate))}
+                  existingEntry={null}
+                  profileName={profileName}
+                  entryDate={catchUpDate}
+                  onSaved={() => {
+                    setCatchUpDate(null);
+                    onEntrySaved?.();
+                  }}
+                />
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
 
       {/* Entry drawer */}
       <Sheet
