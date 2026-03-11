@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import type { Profile } from "@/lib/types";
 
-const EMOJI_OPTIONS = ["🌿", "🔥", "🌙", "☀️", "🌊", "🪵", "🌸", "⭐", "🍂", "🌻"];
+const EMOJI_OPTIONS = ["🌿", "🔥", "🌙", "☀️", "🌊", "🪵", "🌸", "⭐", "🍂", "🌻", "🌕"];
 
 export default function SettingsPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
