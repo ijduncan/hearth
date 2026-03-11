@@ -90,6 +90,11 @@ export const MOOD_TAGS = [
   "numb",
   "romantic",
   "adventurous",
+  "depressed",
+  "content",
+  "stressed",
+  "curious",
+  "irritable",
 ] as const;
 
 export type MoodTag = (typeof MOOD_TAGS)[number];
