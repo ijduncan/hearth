@@ -1,6 +1,7 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getMoodColor } from "@/lib/types";
 import type { Entry } from "@/lib/types";
 import { subDays, startOfWeek, addDays, format } from "date-fns";
 
@@ -8,16 +9,13 @@ interface MoodHeatmapProps {
   entries: Entry[];
 }
 
-function getMoodOpacity(score: number): number {
-  // Map 1-10 score to opacity range 0.2-1.0
-  return 0.2 + (score - 1) * (0.8 / 9);
-}
-
 export function MoodHeatmap({ entries }: MoodHeatmapProps) {
   const today = new Date();
-  // Start from the Monday 4 weeks ago
-  const fourWeeksAgo = subDays(today, 27);
-  const gridStart = startOfWeek(fourWeeksAgo, { weekStartsOn: 1 });
+  const todayStr = format(today, "yyyy-MM-dd");
+
+  // Grid: 4 weeks ending with the current week
+  const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
+  const gridStart = subDays(currentWeekStart, 21); // 3 weeks before
 
   // Build a map of date -> mood_score
   const moodByDate: Record<string, number> = {};
@@ -34,7 +32,7 @@ export function MoodHeatmap({ entries }: MoodHeatmapProps) {
     const week: typeof weeks[0] = [];
     for (let d = 0; d < 7; d++) {
       const dateStr = format(current, "yyyy-MM-dd");
-      const isFuture = current > today;
+      const isFuture = dateStr > todayStr;
       week.push({
         date: current,
         dateStr,
@@ -70,7 +68,7 @@ export function MoodHeatmap({ entries }: MoodHeatmapProps) {
           {weeks.map((week, wi) => (
             <div key={wi} className="grid grid-cols-7 gap-1.5">
               {week.map(({ dateStr, score, date }) => {
-                const isFuture = date > today;
+                const isFuture = dateStr > todayStr;
                 return (
                   <div
                     key={dateStr}
@@ -78,7 +76,8 @@ export function MoodHeatmap({ entries }: MoodHeatmapProps) {
                     style={
                       score != null
                         ? {
-                            backgroundColor: `oklch(0.55 0.12 145 / ${getMoodOpacity(score)})`,
+                            backgroundColor: getMoodColor(score),
+                            opacity: 0.4 + (score / 10) * 0.6,
                           }
                         : isFuture
                           ? { opacity: 0.3 }
