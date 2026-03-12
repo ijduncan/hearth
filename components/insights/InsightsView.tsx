@@ -3,6 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MoodChart } from "./MoodChart";
+import { MoodHeatmap } from "./MoodHeatmap";
 import { WeeklySummary } from "./WeeklySummary";
 import { StreakBadge } from "./StreakBadge";
 import type { Entry, WeeklySummary as WeeklySummaryType } from "@/lib/types";
@@ -123,6 +124,9 @@ export function InsightsView({
           <MoodChart entries={entries} />
         </CardContent>
       </Card>
+
+      {/* Mood heatmap */}
+      <MoodHeatmap entries={entries} />
 
       {/* Weekly summary */}
       <WeeklySummary summary={weeklySummary} />
