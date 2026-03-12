@@ -74,7 +74,7 @@ Built with Next.js 14, Supabase, and Claude.
 
 Set `ALLOWED_EMAILS` in your environment to restrict who can sign up:
 ```
-ALLOWED_EMAILS=ian@example.com,juliet@example.com
+ALLOWED_EMAILS=alice@example.com,bob@example.com
 ```
 
 After your accounts are created, you can also disable new signups in the Supabase Dashboard under Authentication > Settings.
