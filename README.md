@@ -5,6 +5,12 @@ Built with Next.js 14, Supabase, and Claude.
 
 **Core philosophy:** Two minutes. Three questions. No blank page. An AI that listens — not lectures.
 
+## Screenshots
+
+| Mood tracking | Guided entry | History |
+|---|---|---|
+| ![Mood tracking](public/screenshots/mood-tracking.png) | ![Guided entry](public/screenshots/guided-entry.png) | ![History](public/screenshots/history.png) |
+
 ## Features
 
 - Daily mood tracking with visual slider (1-10, colour-coded)
