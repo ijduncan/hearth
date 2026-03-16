@@ -17,6 +17,7 @@ export interface Entry {
   prompt_answer: string | null;
   highlight: string | null;
   challenge: string | null;
+  gratitude: string | null;
   free_write: string | null;
   mood_score: number | null;
   mood_label: string | null;

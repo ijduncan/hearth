@@ -57,6 +57,7 @@ export function HistoryView({ entries, profileName = "friend", onEntrySaved }: H
         (e) =>
           e.highlight?.toLowerCase().includes(q) ||
           e.challenge?.toLowerCase().includes(q) ||
+          e.gratitude?.toLowerCase().includes(q) ||
           e.prompt_answer?.toLowerCase().includes(q) ||
           e.free_write?.toLowerCase().includes(q)
       );
@@ -305,6 +306,15 @@ export function HistoryView({ entries, profileName = "friend", onEntrySaved }: H
                       What felt hard
                     </p>
                     <p className="text-sm">{selectedEntry.challenge}</p>
+                  </div>
+                )}
+
+                {selectedEntry.gratitude && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">
+                      Grateful for
+                    </p>
+                    <p className="text-sm">{selectedEntry.gratitude}</p>
                   </div>
                 )}
 

@@ -54,6 +54,7 @@ export async function POST(request: Request) {
         prompt_answer: body.prompt_answer,
         highlight: body.highlight,
         challenge: body.challenge,
+        gratitude: body.gratitude,
         free_write: body.free_write,
         word_count: body.word_count,
         entry_duration_seconds: body.entry_duration_seconds,
@@ -80,6 +81,7 @@ export async function POST(request: Request) {
         prompt_answer: body.prompt_answer,
         highlight: body.highlight,
         challenge: body.challenge,
+        gratitude: body.gratitude,
         free_write: body.free_write,
       },
       profile?.display_name || "friend"

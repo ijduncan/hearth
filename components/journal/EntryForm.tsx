@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { MoodSlider } from "./MoodSlider";
 import { DailyPrompt } from "./DailyPrompt";
-import { VoiceInput } from "./VoiceInput";
+
 import { AISpark } from "./AISpark";
 import type { Prompt, Entry } from "@/lib/types";
 
@@ -35,24 +35,13 @@ export function EntryForm({
   const [promptAnswer, setPromptAnswer] = useState(existingEntry?.prompt_answer || "");
   const [highlight, setHighlight] = useState(existingEntry?.highlight || "");
   const [challenge, setChallenge] = useState(existingEntry?.challenge || "");
+  const [gratitude, setGratitude] = useState(existingEntry?.gratitude || "");
   const [freeWrite, setFreeWrite] = useState(existingEntry?.free_write || "");
   const [aiAcknowledgment, setAiAcknowledgment] = useState(
     existingEntry?.ai_acknowledgment || ""
   );
   const [streakCount, setStreakCount] = useState(0);
   const startTime = useRef(Date.now());
-
-  // Compute voice_used tracking
-  const [voiceUsed, setVoiceUsed] = useState(false);
-
-  const handleVoiceTranscript = (
-    setter: React.Dispatch<React.SetStateAction<string>>
-  ) => {
-    return (text: string) => {
-      setter((prev) => (prev ? prev + " " + text : text));
-      setVoiceUsed(true);
-    };
-  };
 
   const handleTagToggle = (tag: string) => {
     setMoodTags((prev) =>
@@ -63,7 +52,7 @@ export function EntryForm({
   const handleSubmit = async () => {
     setStep("submitting");
 
-    const wordCount = [promptAnswer, highlight, challenge, freeWrite]
+    const wordCount = [promptAnswer, highlight, challenge, gratitude, freeWrite]
       .filter(Boolean)
       .join(" ")
       .split(/\s+/)
@@ -84,10 +73,11 @@ export function EntryForm({
           prompt_answer: promptAnswer || null,
           highlight: highlight || null,
           challenge: challenge || null,
+          gratitude: gratitude || null,
           free_write: freeWrite || null,
           word_count: wordCount,
           entry_duration_seconds: durationSeconds,
-          voice_used: voiceUsed,
+          voice_used: false,
         }),
       });
 
@@ -194,18 +184,13 @@ export function EntryForm({
             <Card>
               <CardContent className="pt-6 space-y-3">
                 <DailyPrompt prompt={todaysPrompt} />
-                <div className="flex items-start gap-2">
-                  <Textarea
-                    placeholder="Your thoughts..."
-                    value={promptAnswer}
-                    onChange={(e) => setPromptAnswer(e.target.value)}
-                    rows={3}
-                    className="resize-none"
-                  />
-                  <VoiceInput
-                    onTranscript={handleVoiceTranscript(setPromptAnswer)}
-                  />
-                </div>
+                <Textarea
+                  placeholder="Your thoughts..."
+                  value={promptAnswer}
+                  onChange={(e) => setPromptAnswer(e.target.value)}
+                  rows={3}
+                  className="resize-none"
+                />
               </CardContent>
             </Card>
 
@@ -215,18 +200,13 @@ export function EntryForm({
                 <p className="font-serif text-lg">
                   What was the best part of today?
                 </p>
-                <div className="flex items-start gap-2">
-                  <Textarea
-                    placeholder="Even something small..."
-                    value={highlight}
-                    onChange={(e) => setHighlight(e.target.value)}
-                    rows={2}
-                    className="resize-none"
-                  />
-                  <VoiceInput
-                    onTranscript={handleVoiceTranscript(setHighlight)}
-                  />
-                </div>
+                <Textarea
+                  placeholder="Even something small..."
+                  value={highlight}
+                  onChange={(e) => setHighlight(e.target.value)}
+                  rows={2}
+                  className="resize-none"
+                />
               </CardContent>
             </Card>
 
@@ -236,18 +216,29 @@ export function EntryForm({
                 <p className="font-serif text-lg">
                   What felt heavy or hard?
                 </p>
-                <div className="flex items-start gap-2">
-                  <Textarea
-                    placeholder="No judgement here..."
-                    value={challenge}
-                    onChange={(e) => setChallenge(e.target.value)}
-                    rows={2}
-                    className="resize-none"
-                  />
-                  <VoiceInput
-                    onTranscript={handleVoiceTranscript(setChallenge)}
-                  />
-                </div>
+                <Textarea
+                  placeholder="No judgement here..."
+                  value={challenge}
+                  onChange={(e) => setChallenge(e.target.value)}
+                  rows={2}
+                  className="resize-none"
+                />
+              </CardContent>
+            </Card>
+
+            {/* Gratitude */}
+            <Card>
+              <CardContent className="pt-6 space-y-3">
+                <p className="font-serif text-lg">
+                  What are you grateful for?
+                </p>
+                <Textarea
+                  placeholder="Big or small..."
+                  value={gratitude}
+                  onChange={(e) => setGratitude(e.target.value)}
+                  rows={2}
+                  className="resize-none"
+                />
               </CardContent>
             </Card>
 
@@ -289,18 +280,13 @@ export function EntryForm({
                     you&apos;d like.
                   </p>
                 </div>
-                <div className="flex items-start gap-2">
-                  <Textarea
-                    placeholder="Whatever comes to mind..."
-                    value={freeWrite}
-                    onChange={(e) => setFreeWrite(e.target.value)}
-                    rows={5}
-                    className="resize-none"
-                  />
-                  <VoiceInput
-                    onTranscript={handleVoiceTranscript(setFreeWrite)}
-                  />
-                </div>
+                <Textarea
+                  placeholder="Whatever comes to mind..."
+                  value={freeWrite}
+                  onChange={(e) => setFreeWrite(e.target.value)}
+                  rows={5}
+                  className="resize-none"
+                />
                 <div className="flex gap-3">
                   <Button
                     variant="outline"

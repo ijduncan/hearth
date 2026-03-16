@@ -37,6 +37,7 @@ export async function generateAcknowledgment(
     prompt_answer: string | null;
     highlight: string | null;
     challenge: string | null;
+    gratitude: string | null;
     free_write: string | null;
   },
   displayName: string
@@ -52,6 +53,7 @@ export async function generateAcknowledgment(
     );
   if (entryData.highlight) parts.push(`Best part of the day: ${entryData.highlight}`);
   if (entryData.challenge) parts.push(`What felt hard: ${entryData.challenge}`);
+  if (entryData.gratitude) parts.push(`Grateful for: ${entryData.gratitude}`);
   if (entryData.free_write) parts.push(`Free write: ${entryData.free_write}`);
 
   const message = await anthropic.messages.create({
@@ -77,6 +79,7 @@ export async function generateWeeklySummary(
     mood_label: string | null;
     highlight: string | null;
     challenge: string | null;
+    gratitude: string | null;
     prompt_question: string | null;
     prompt_answer: string | null;
     free_write: string | null;
@@ -89,6 +92,7 @@ export async function generateWeeklySummary(
       if (e.mood_score) parts.push(`Mood: ${e.mood_score}/10 (${e.mood_label})`);
       if (e.highlight) parts.push(`Highlight: ${e.highlight}`);
       if (e.challenge) parts.push(`Challenge: ${e.challenge}`);
+      if (e.gratitude) parts.push(`Grateful for: ${e.gratitude}`);
       if (e.prompt_answer) parts.push(`Prompt answer: ${e.prompt_answer}`);
       if (e.free_write) parts.push(`Free write: ${e.free_write}`);
       return parts.join("\n");
