@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MoodChart } from "./MoodChart";
 import { MoodHeatmap } from "./MoodHeatmap";
+import { YearHeatmap } from "./YearHeatmap";
 import { WeeklySummary } from "./WeeklySummary";
 import { StreakBadge } from "./StreakBadge";
 import type { Entry, WeeklySummary as WeeklySummaryType } from "@/lib/types";
@@ -62,6 +63,9 @@ export function InsightsView({
     }))
     .sort((a, b) => b.count - a.count);
 
+  const thirtyDaysAgo = subDays(now, 30).toISOString().split("T")[0];
+  const recentEntries = entries.filter((e) => e.entry_date >= thirtyDaysAgo);
+
   // Longest entry
   const longestEntry = entries.reduce(
     (max, e) => ((e.word_count || 0) > max ? e.word_count || 0 : max),
@@ -100,7 +104,7 @@ export function InsightsView({
         <Card>
           <CardContent className="pt-4 pb-4 text-center">
             <p className="text-2xl font-semibold tabular-nums">
-              {entries.length}
+              {recentEntries.length}
             </p>
             <p className="text-xs text-muted-foreground">Entries (30 days)</p>
           </CardContent>
@@ -121,12 +125,15 @@ export function InsightsView({
           <CardTitle className="text-base">Mood over 30 days</CardTitle>
         </CardHeader>
         <CardContent>
-          <MoodChart entries={entries} />
+          <MoodChart entries={recentEntries} />
         </CardContent>
       </Card>
 
       {/* Mood heatmap */}
       <MoodHeatmap entries={entries} />
+
+      {/* Year heatmap */}
+      <YearHeatmap entries={entries} />
 
       {/* Weekly summary */}
       <WeeklySummary summary={weeklySummary} />

@@ -47,6 +47,16 @@ export interface Prompt {
   text: string;
 }
 
+export interface PromptInteraction {
+  id: string;
+  user_id: string;
+  prompt_text: string;
+  prompt_category: string;
+  interaction_type: "answered" | "skipped" | "shown";
+  entry_date: string;
+  created_at: string;
+}
+
 export const MOOD_LABELS: Record<number, string> = {
   1: "Rough",
   2: "Rough",

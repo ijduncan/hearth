@@ -9,13 +9,13 @@ export default async function InsightsPage() {
 
   if (!user) redirect("/login");
 
-  const thirtyDaysAgo = format(subDays(new Date(), 30), "yyyy-MM-dd");
+  const oneYearAgo = format(subDays(new Date(), 365), "yyyy-MM-dd");
 
   const { data: entries } = await supabase
     .from("entries")
     .select("*")
     .eq("user_id", user.id)
-    .gte("entry_date", thirtyDaysAgo)
+    .gte("entry_date", oneYearAgo)
     .order("entry_date");
 
   const { data: profile } = await supabase

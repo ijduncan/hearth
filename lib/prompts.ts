@@ -1,5 +1,5 @@
 import { getDayOfYear } from "date-fns";
-import type { Prompt } from "./types";
+import type { Prompt, PromptInteraction } from "./types";
 
 export const PROMPT_CATEGORIES: Record<string, string[]> = {
   gratitude: [
@@ -150,4 +150,86 @@ export function getTodaysPrompt(date: Date = new Date()): Prompt {
   const dayOfYear = getDayOfYear(date);
   const allPrompts = getAllPrompts();
   return allPrompts[dayOfYear % allPrompts.length];
+}
+
+/**
+ * Calculate category weights based on historical prompt interactions.
+ * Categories the user answers more get boosted; categories they skip get suppressed.
+ */
+export function getCategoryWeights(
+  interactions: PromptInteraction[]
+): Record<string, number> {
+  const stats: Record<string, { shown: number; answered: number }> = {};
+
+  for (const i of interactions) {
+    if (!stats[i.prompt_category]) {
+      stats[i.prompt_category] = { shown: 0, answered: 0 };
+    }
+    if (i.interaction_type === "shown" || i.interaction_type === "answered") {
+      stats[i.prompt_category].shown++;
+    }
+    if (i.interaction_type === "answered") {
+      stats[i.prompt_category].answered++;
+    }
+  }
+
+  const weights: Record<string, number> = {};
+  for (const category of Object.keys(PROMPT_CATEGORIES)) {
+    const s = stats[category];
+    if (!s || s.shown < 3) {
+      weights[category] = 1.0; // not enough data
+      continue;
+    }
+    const rate = s.answered / s.shown;
+    if (rate > 0.7) weights[category] = 1.5;
+    else if (rate < 0.3) weights[category] = 0.5;
+    else weights[category] = 1.0;
+    // Never fully suppress
+    weights[category] = Math.max(weights[category], 0.3);
+  }
+
+  return weights;
+}
+
+/**
+ * Select a personalized prompt, excluding any already shown today.
+ * Uses a seeded random based on date + attempt number for determinism.
+ */
+export function getPersonalizedPrompt(
+  date: Date,
+  interactions: PromptInteraction[],
+  excludeTexts: string[] = []
+): Prompt {
+  const weights = getCategoryWeights(interactions);
+  const allPrompts = getAllPrompts();
+
+  // Filter out already-shown prompts
+  const available = allPrompts.filter((p) => !excludeTexts.includes(p.text));
+  if (available.length === 0) return getTodaysPrompt(date); // fallback
+
+  // Build weighted pool
+  const weighted: { prompt: Prompt; weight: number }[] = available.map((p) => ({
+    prompt: p,
+    weight: weights[p.category] ?? 1.0,
+  }));
+
+  const totalWeight = weighted.reduce((sum, w) => sum + w.weight, 0);
+
+  // Seeded random: use dayOfYear + number of excludeTexts as seed
+  const seed = getDayOfYear(date) * 1000 + excludeTexts.length;
+  const random = seededRandom(seed);
+  let pick = random * totalWeight;
+
+  for (const w of weighted) {
+    pick -= w.weight;
+    if (pick <= 0) return w.prompt;
+  }
+
+  return weighted[weighted.length - 1].prompt;
+}
+
+/** Simple seeded random (0-1) for deterministic prompt selection */
+function seededRandom(seed: number): number {
+  const x = Math.sin(seed * 9301 + 49297) * 233280;
+  return x - Math.floor(x);
 }

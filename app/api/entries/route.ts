@@ -101,6 +101,17 @@ export async function POST(request: Request) {
 
   // Update streak
   const today = body.entry_date || new Date().toISOString().split("T")[0];
+
+  // Record prompt interaction as answered (if prompt was answered)
+  if (body.prompt_question && body.prompt_answer) {
+    await supabase.from("prompt_interactions").insert({
+      user_id: user.id,
+      prompt_text: body.prompt_question,
+      prompt_category: body.prompt_category || "",
+      interaction_type: "answered",
+      entry_date: today,
+    });
+  }
   const yesterdayDate = new Date(today + "T00:00:00");
   yesterdayDate.setDate(yesterdayDate.getDate() - 1);
   const yesterday = yesterdayDate.toISOString().split("T")[0];

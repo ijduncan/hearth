@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   format,
   parseISO,
@@ -29,6 +29,7 @@ import { getMoodColor, MOOD_TAGS } from "@/lib/types";
 import { getTodaysPrompt } from "@/lib/prompts";
 import { EntryForm } from "@/components/journal/EntryForm";
 import type { Entry } from "@/lib/types";
+import { searchEntries, highlightText } from "@/lib/search";
 
 interface HistoryViewProps {
   entries: Entry[];
@@ -41,7 +42,14 @@ export function HistoryView({ entries, profileName = "friend", onEntrySaved }: H
   const [selectedEntry, setSelectedEntry] = useState<Entry | null>(null);
   const [catchUpDate, setCatchUpDate] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [filterTag, setFilterTag] = useState<string | null>(null);
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(searchQuery), 200);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const entryMap = useMemo(() => {
     const map = new Map<string, Entry>();
@@ -49,24 +57,10 @@ export function HistoryView({ entries, profileName = "friend", onEntrySaved }: H
     return map;
   }, [entries]);
 
-  const filteredEntries = useMemo(() => {
-    let result = entries;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (e) =>
-          e.highlight?.toLowerCase().includes(q) ||
-          e.challenge?.toLowerCase().includes(q) ||
-          e.gratitude?.toLowerCase().includes(q) ||
-          e.prompt_answer?.toLowerCase().includes(q) ||
-          e.free_write?.toLowerCase().includes(q)
-      );
-    }
-    if (filterTag) {
-      result = result.filter((e) => e.mood_tags?.includes(filterTag));
-    }
-    return result;
-  }, [entries, searchQuery, filterTag]);
+  const searchResults = useMemo(
+    () => searchEntries(entries, debouncedQuery, filterTag),
+    [entries, debouncedQuery, filterTag]
+  );
 
   // Calendar grid
   const monthStart = startOfMonth(currentMonth);
@@ -178,42 +172,72 @@ export function HistoryView({ entries, profileName = "friend", onEntrySaved }: H
       </Card>
 
       {/* Search results (if searching) */}
-      {(searchQuery || filterTag) && (
+      {(debouncedQuery || filterTag) && (
         <div className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            {filteredEntries.length} result{filteredEntries.length !== 1 ? "s" : ""}
-          </p>
-          {filteredEntries.map((entry) => (
-            <Card
-              key={entry.id}
-              className="cursor-pointer hover:bg-muted/50 transition-colors"
-              onClick={() => setSelectedEntry(entry)}
-            >
-              <CardContent className="py-3">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm font-medium">
-                    {format(parseISO(entry.entry_date), "EEEE, MMM d")}
+          {searchResults.length > 0 ? (
+            <>
+              <p className="text-sm text-muted-foreground">
+                {searchResults.length} result{searchResults.length !== 1 ? "s" : ""}
+                {debouncedQuery && filterTag && (
+                  <span>
+                    {" "}for &ldquo;{debouncedQuery}&rdquo; + {filterTag}
                   </span>
-                  {entry.mood_score && (
-                    <span
-                      className="text-xs font-medium px-2 py-0.5 rounded-full"
-                      style={{
-                        backgroundColor: getMoodColor(entry.mood_score) + "20",
-                        color: getMoodColor(entry.mood_score),
-                      }}
-                    >
-                      {entry.mood_label} {entry.mood_score}/10
-                    </span>
-                  )}
-                </div>
-                {entry.highlight && (
-                  <p className="text-sm text-muted-foreground line-clamp-2">
-                    {entry.highlight}
-                  </p>
                 )}
-              </CardContent>
-            </Card>
-          ))}
+              </p>
+              {searchResults.map(({ entry, matchedFields }) => (
+                <Card
+                  key={entry.id}
+                  className="cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => setSelectedEntry(entry)}
+                >
+                  <CardContent className="py-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-medium">
+                        {format(parseISO(entry.entry_date), "EEEE, MMM d")}
+                      </span>
+                      {entry.mood_score && (
+                        <span
+                          className="text-xs font-medium px-2 py-0.5 rounded-full"
+                          style={{
+                            backgroundColor: getMoodColor(entry.mood_score) + "20",
+                            color: getMoodColor(entry.mood_score),
+                          }}
+                        >
+                          {entry.mood_label} {entry.mood_score}/10
+                        </span>
+                      )}
+                    </div>
+                    {/* Show first matching field with highlight */}
+                    {debouncedQuery && matchedFields.length > 0 && (
+                      <p className="text-sm text-muted-foreground line-clamp-2">
+                        <span className="text-xs font-medium text-muted-foreground/70">
+                          {matchedFields[0]}:
+                        </span>{" "}
+                        {highlightText(
+                          getFieldPreview(entry, matchedFields[0]) || "",
+                          debouncedQuery
+                        )}
+                      </p>
+                    )}
+                    {!debouncedQuery && entry.highlight && (
+                      <p className="text-sm text-muted-foreground line-clamp-2">
+                        {entry.highlight}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </>
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-sm text-muted-foreground">
+                No entries match your search.
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Try different words or clear the filters.
+              </p>
+            </div>
+          )}
         </div>
       )}
 
@@ -344,4 +368,21 @@ export function HistoryView({ entries, profileName = "friend", onEntrySaved }: H
       </Sheet>
     </div>
   );
+}
+
+const FIELD_LABEL_MAP: Record<string, keyof Entry> = {
+  "Highlight": "highlight",
+  "Challenge": "challenge",
+  "Gratitude": "gratitude",
+  "Prompt answer": "prompt_answer",
+  "Free write": "free_write",
+  "Mood": "mood_label",
+  "AI reflection": "ai_acknowledgment",
+};
+
+function getFieldPreview(entry: Entry, fieldLabel: string): string | null {
+  const key = FIELD_LABEL_MAP[fieldLabel];
+  if (!key) return null;
+  const value = entry[key];
+  return typeof value === "string" ? value : null;
 }

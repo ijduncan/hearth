@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, ChevronRight, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -40,8 +40,35 @@ export function EntryForm({
   const [aiAcknowledgment, setAiAcknowledgment] = useState(
     existingEntry?.ai_acknowledgment || ""
   );
+  const [currentPrompt, setCurrentPrompt] = useState<Prompt>(todaysPrompt);
+  const [swapCount, setSwapCount] = useState(0);
+  const [swapping, setSwapping] = useState(false);
   const [streakCount, setStreakCount] = useState(0);
   const startTime = useRef(Date.now());
+
+  const handlePromptSwap = useCallback(async () => {
+    if (swapCount >= 3 || swapping) return;
+    setSwapping(true);
+    try {
+      const res = await fetch("/api/ai/prompts/swap", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          entry_date: entryDate || new Date().toLocaleDateString("en-CA"),
+          skipped_prompt_text: currentPrompt.text,
+          skipped_prompt_category: currentPrompt.category,
+        }),
+      });
+      if (res.ok) {
+        const newPrompt = await res.json();
+        setCurrentPrompt(newPrompt);
+        setSwapCount((c) => c + 1);
+        setPromptAnswer("");
+      }
+    } finally {
+      setSwapping(false);
+    }
+  }, [swapCount, swapping, currentPrompt, entryDate]);
 
   const handleTagToggle = (tag: string) => {
     setMoodTags((prev) =>
@@ -69,7 +96,8 @@ export function EntryForm({
           mood_score: moodScore,
           mood_label: getMoodLabelLocal(moodScore),
           mood_tags: moodTags,
-          prompt_question: todaysPrompt.text,
+          prompt_question: currentPrompt.text,
+          prompt_category: currentPrompt.category,
           prompt_answer: promptAnswer || null,
           highlight: highlight || null,
           challenge: challenge || null,
@@ -183,7 +211,12 @@ export function EntryForm({
             {/* Daily Prompt */}
             <Card>
               <CardContent className="pt-6 space-y-3">
-                <DailyPrompt prompt={todaysPrompt} />
+                <DailyPrompt
+                  prompt={currentPrompt}
+                  onSwap={handlePromptSwap}
+                  swapCount={swapCount}
+                  swapping={swapping}
+                />
                 <Textarea
                   placeholder="Your thoughts..."
                   value={promptAnswer}
