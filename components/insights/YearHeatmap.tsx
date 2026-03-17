@@ -3,7 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getMoodColor } from "@/lib/types";
 import type { Entry } from "@/lib/types";
-import { subDays, startOfWeek, addDays, format, getMonth } from "date-fns";
+import { startOfYear, startOfWeek, addDays, format, getMonth, getYear } from "date-fns";
 
 interface YearHeatmapProps {
   entries: Entry[];
@@ -12,10 +12,12 @@ interface YearHeatmapProps {
 export function YearHeatmap({ entries }: YearHeatmapProps) {
   const today = new Date();
   const todayStr = format(today, "yyyy-MM-dd");
+  const year = getYear(today);
 
-  // Start 364 days ago, snap to Monday
-  const rawStart = subDays(today, 364);
-  const gridStart = startOfWeek(rawStart, { weekStartsOn: 1 });
+  // Start from Jan 1 of current year, snap to Monday
+  const janFirst = startOfYear(today);
+  const gridStart = startOfWeek(janFirst, { weekStartsOn: 1 });
+  const decThirtyFirst = new Date(year, 11, 31);
 
   // Build date->score map
   const moodByDate: Record<string, number> = {};
@@ -26,10 +28,11 @@ export function YearHeatmap({ entries }: YearHeatmapProps) {
   }
 
   // Build weeks (columns) with 7 days each (rows: Mon=0 ... Sun=6)
+  // Cover Jan 1 through Dec 31
   const weeks: { dateStr: string; score: number | null; isFuture: boolean }[][] = [];
   let current = gridStart;
 
-  while (current <= today) {
+  while (current <= decThirtyFirst) {
     const week: typeof weeks[0] = [];
     for (let d = 0; d < 7; d++) {
       const dateStr = format(current, "yyyy-MM-dd");
@@ -60,7 +63,7 @@ export function YearHeatmap({ entries }: YearHeatmapProps) {
     }
   }
 
-  const dayLabels = ["M", "", "W", "", "F", "", ""];
+  const dayLabels = ["M", "T", "W", "T", "F", "S", "S"];
   const cellSize = 13;
   const cellGap = 2;
   const labelWidth = 20;
@@ -72,7 +75,7 @@ export function YearHeatmap({ entries }: YearHeatmapProps) {
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Year in mood</CardTitle>
-        <p className="text-xs text-muted-foreground">Last 365 days</p>
+        <p className="text-xs text-muted-foreground">{year}</p>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto -mx-2 px-2">
@@ -95,19 +98,17 @@ export function YearHeatmap({ entries }: YearHeatmapProps) {
             ))}
 
             {/* Day-of-week labels */}
-            {dayLabels.map((label, i) =>
-              label ? (
-                <text
-                  key={`day-${i}`}
-                  x={0}
-                  y={headerHeight + i * (cellSize + cellGap) + cellSize - 2}
-                  className="fill-muted-foreground"
-                  fontSize={10}
-                >
-                  {label}
-                </text>
-              ) : null
-            )}
+            {dayLabels.map((label, i) => (
+              <text
+                key={`day-${i}`}
+                x={0}
+                y={headerHeight + i * (cellSize + cellGap) + cellSize - 2}
+                className="fill-muted-foreground"
+                fontSize={10}
+              >
+                {label}
+              </text>
+            ))}
 
             {/* Cells */}
             {weeks.map((week, wi) =>
