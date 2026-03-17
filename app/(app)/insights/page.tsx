@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { subDays, format, startOfWeek, endOfWeek } from "date-fns";
+import { subDays, format, startOfWeek, startOfMonth } from "date-fns";
 import { InsightsView } from "@/components/insights/InsightsView";
 
 export default async function InsightsPage() {
@@ -35,6 +35,16 @@ export default async function InsightsPage() {
     .eq("week_start", weekStart)
     .single();
 
+  // Get current month's summary
+  const monthStart = format(startOfMonth(now), "yyyy-MM-dd");
+
+  const { data: monthlySummary } = await supabase
+    .from("monthly_summaries")
+    .select("*")
+    .eq("user_id", user.id)
+    .eq("month_start", monthStart)
+    .single();
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-serif font-semibold">Insights</h1>
@@ -42,6 +52,7 @@ export default async function InsightsPage() {
         entries={entries || []}
         streakCount={profile?.streak_count || 0}
         weeklySummary={weeklySummary}
+        monthlySummary={monthlySummary}
       />
     </div>
   );

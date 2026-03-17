@@ -5,21 +5,25 @@ import { Badge } from "@/components/ui/badge";
 import { MoodChart } from "./MoodChart";
 import { MoodHeatmap } from "./MoodHeatmap";
 import { YearHeatmap } from "./YearHeatmap";
+import { MoodPatterns } from "./MoodPatterns";
 import { WeeklySummary } from "./WeeklySummary";
+import { MonthlySummary } from "./MonthlySummary";
 import { StreakBadge } from "./StreakBadge";
-import type { Entry, WeeklySummary as WeeklySummaryType } from "@/lib/types";
+import type { Entry, WeeklySummary as WeeklySummaryType, MonthlySummary as MonthlySummaryType } from "@/lib/types";
 import { subDays } from "date-fns";
 
 interface InsightsViewProps {
   entries: Entry[];
   streakCount: number;
   weeklySummary: WeeklySummaryType | null;
+  monthlySummary: MonthlySummaryType | null;
 }
 
 export function InsightsView({
   entries,
   streakCount,
   weeklySummary,
+  monthlySummary,
 }: InsightsViewProps) {
   // Stats calculations
   const now = new Date();
@@ -135,8 +139,14 @@ export function InsightsView({
       {/* Year heatmap */}
       <YearHeatmap entries={entries} />
 
+      {/* Mood patterns */}
+      <MoodPatterns entries={entries} />
+
       {/* Weekly summary */}
       <WeeklySummary summary={weeklySummary} />
+
+      {/* Monthly summary */}
+      <MonthlySummary summary={monthlySummary} />
 
       {/* Tag heatmap */}
       {tagStats.length > 0 && (

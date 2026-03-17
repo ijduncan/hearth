@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/weekly-summary",
       "schedule": "0 7 * * 0"
+    },
+    {
+      "path": "/api/cron/monthly-summary",
+      "schedule": "0 8 1 * *"
     }
   ]
 }

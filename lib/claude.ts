@@ -17,6 +17,18 @@ Rules:
 - Tone: like a trusted friend who mostly listens
 - Use their first name once, naturally`;
 
+const MONTHLY_SYSTEM = `You are writing a private monthly reflection for someone who journals.
+Read their entries from the past month and write a 200-300 word summary.
+
+Format:
+- One paragraph: the overall arc of the month — how it began, shifted, and ended
+- One paragraph: recurring themes (emotional, situational, relational)
+- One sentence: something specific they might not have noticed across the month
+
+Tone: honest, observational, not cheerleading. Like a thoughtful editor reading their collected drafts.
+Never use: "journey", "thrive", "growth mindset", "amazing", "wonderful", "embrace", "delve"
+Use their first name once, naturally.`;
+
 const SUMMARY_SYSTEM = `You are writing a private weekly reflection summary for someone who journals.
 Read their entries from the past week and write a 150-200 word summary.
 
@@ -107,6 +119,49 @@ export async function generateWeeklySummary(
       {
         role: "user",
         content: `The person's name is ${displayName}. Here are their journal entries from the past week:\n\n${entrySummaries}`,
+      },
+    ],
+  });
+
+  const block = message.content[0];
+  return block.type === "text" ? block.text : "";
+}
+
+export async function generateMonthlySummary(
+  entries: Array<{
+    entry_date: string;
+    mood_score: number | null;
+    mood_label: string | null;
+    highlight: string | null;
+    challenge: string | null;
+    gratitude: string | null;
+    prompt_question: string | null;
+    prompt_answer: string | null;
+    free_write: string | null;
+  }>,
+  displayName: string
+): Promise<string> {
+  const entrySummaries = entries
+    .map((e) => {
+      const parts: string[] = [`Date: ${e.entry_date}`];
+      if (e.mood_score) parts.push(`Mood: ${e.mood_score}/10 (${e.mood_label})`);
+      if (e.highlight) parts.push(`Highlight: ${e.highlight}`);
+      if (e.challenge) parts.push(`Challenge: ${e.challenge}`);
+      if (e.gratitude) parts.push(`Grateful for: ${e.gratitude}`);
+      if (e.prompt_answer) parts.push(`Prompt answer: ${e.prompt_answer}`);
+      if (e.free_write) parts.push(`Free write: ${e.free_write}`);
+      return parts.join("\n");
+    })
+    .join("\n---\n");
+
+  const message = await anthropic.messages.create({
+    model: "claude-sonnet-4-20250514",
+    max_tokens: 700,
+    system: MONTHLY_SYSTEM,
+    messages: [
+      {
+        role: "user",
+        content: `The person's name is ${displayName}. Here are their journal entries from the past month:\n\n${entrySummaries}`,
       },
     ],
   });

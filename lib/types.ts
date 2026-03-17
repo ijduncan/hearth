@@ -42,6 +42,18 @@ export interface WeeklySummary {
   created_at: string;
 }
 
+export interface MonthlySummary {
+  id: string;
+  user_id: string;
+  month_start: string;
+  month_end: string;
+  summary_text: string;
+  avg_mood: number | null;
+  dominant_tags: string[] | null;
+  total_entries: number | null;
+  created_at: string;
+}
+
 export interface Prompt {
   category: string;
   text: string;
