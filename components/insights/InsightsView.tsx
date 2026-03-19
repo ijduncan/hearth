@@ -153,6 +153,7 @@ export function InsightsView({
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Mood by tag</CardTitle>
+            <p className="text-xs text-muted-foreground">Average mood score when a tag is used</p>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
