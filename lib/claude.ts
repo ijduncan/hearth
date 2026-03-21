@@ -222,7 +222,7 @@ export async function generateTherapistSummary(
     .join("\n---\n");
 
   const message = await anthropic.messages.create({
-    model: "claude-opus-4-6-20250415",
+    model: "claude-opus-4-20250514",
     max_tokens: 1200,
     system: THERAPIST_SYSTEM,
     messages: [
