@@ -112,16 +112,24 @@ export async function POST(request: Request) {
       entry_date: today,
     });
   }
-  const yesterdayDate = new Date(today + "T00:00:00");
-  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-  const yesterday = yesterdayDate.toISOString().split("T")[0];
-  let newStreak = 1;
+  // Calculate streak from actual entries
+  const { data: recentEntries } = await supabase
+    .from("entries")
+    .select("entry_date")
+    .eq("user_id", user.id)
+    .order("entry_date", { ascending: false })
+    .limit(365);
 
-  if (profile?.last_entry_date === yesterday) {
-    newStreak = (profile.streak_count || 0) + 1;
-  } else if (profile?.last_entry_date === today) {
-    newStreak = profile?.streak_count || 1;
+  let newStreak = 0;
+  if (recentEntries && recentEntries.length > 0) {
+    const entryDates = new Set(recentEntries.map((e) => e.entry_date));
+    const checkDate = new Date(today + "T00:00:00");
+    while (entryDates.has(checkDate.toISOString().split("T")[0])) {
+      newStreak++;
+      checkDate.setDate(checkDate.getDate() - 1);
+    }
   }
+  if (newStreak === 0) newStreak = 1; // just saved today
 
   await supabase
     .from("profiles")
