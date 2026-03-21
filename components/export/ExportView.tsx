@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { subDays, format, differenceInDays } from "date-fns";
-import { Loader2, Copy, Check } from "lucide-react";
+import { Loader2, Copy, Check, Download } from "lucide-react";
+import { toPng } from "html-to-image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MoodChart } from "@/components/insights/MoodChart";
@@ -28,6 +29,9 @@ export function ExportView({ entries, displayName }: ExportViewProps) {
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const reportRef = useRef<HTMLDivElement>(null);
 
   const fromStr = format(dateRange.from, "yyyy-MM-dd");
   const toStr = format(dateRange.to, "yyyy-MM-dd");
@@ -37,14 +41,11 @@ export function ExportView({ entries, displayName }: ExportViewProps) {
     [entries, fromStr, toStr]
   );
 
-  // Reset AI summary when date range changes
   const handleDateChange = useCallback((range: { from: Date; to: Date }) => {
     setDateRange(range);
     setAiSummary(null);
     setError(null);
   }, []);
-
-  const [error, setError] = useState<string | null>(null);
 
   const handleGenerate = async () => {
     setGenerating(true);
@@ -62,7 +63,7 @@ export function ExportView({ entries, displayName }: ExportViewProps) {
         const data = await res.json().catch(() => ({}));
         setError(data.error || `Failed (${res.status})`);
       }
-    } catch (e) {
+    } catch {
       setError("Network error — please try again");
     }
     setGenerating(false);
@@ -73,6 +74,24 @@ export function ExportView({ entries, displayName }: ExportViewProps) {
     await navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleDownloadImage = async () => {
+    if (!reportRef.current) return;
+    setDownloading(true);
+    try {
+      const dataUrl = await toPng(reportRef.current, {
+        backgroundColor: "#0a0a0a",
+        pixelRatio: 2,
+      });
+      const link = document.createElement("a");
+      link.download = `hearth-report-${fromStr}-to-${toStr}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch {
+      // fallback: ignore
+    }
+    setDownloading(false);
   };
 
   return (
@@ -101,53 +120,84 @@ export function ExportView({ entries, displayName }: ExportViewProps) {
         </p>
       ) : (
         <>
-          {/* Mood Overview */}
-          <MoodOverview entries={filteredEntries} from={dateRange.from} to={dateRange.to} />
+          {/* Report content — captured for image export */}
+          <div ref={reportRef} className="space-y-6">
+            {/* Report header (visible in image) */}
+            <div className="text-sm text-muted-foreground">
+              <p className="font-medium text-foreground">Hearth Journal Report</p>
+              <p>
+                {displayName} &middot; {format(dateRange.from, "MMM d")} – {format(dateRange.to, "MMM d, yyyy")}
+              </p>
+            </div>
 
-          {/* Period Mood Chart */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Mood trend</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <MoodChart entries={filteredEntries} />
-            </CardContent>
-          </Card>
+            {/* Mood Overview */}
+            <MoodOverview entries={filteredEntries} from={dateRange.from} to={dateRange.to} />
 
-          {/* Period Heatmap */}
-          <PeriodHeatmap entries={filteredEntries} from={dateRange.from} to={dateRange.to} />
+            {/* Period Mood Chart */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Mood trend</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <MoodChart entries={filteredEntries} />
+              </CardContent>
+            </Card>
 
-          {/* Year Heatmap */}
-          <YearHeatmap entries={entries} />
+            {/* Period Heatmap */}
+            <PeriodHeatmap entries={filteredEntries} from={dateRange.from} to={dateRange.to} />
 
-          {/* Tag Breakdown */}
-          <TagBreakdown entries={filteredEntries} />
+            {/* Year Heatmap */}
+            <YearHeatmap entries={entries} />
 
-          {/* Therapist Summary */}
-          {error && (
-            <p className="text-sm text-red-500 text-center">{error}</p>
-          )}
-          {aiSummary && <TherapistSummary summary={aiSummary} />}
+            {/* Tag Breakdown */}
+            <TagBreakdown entries={filteredEntries} />
 
-          {/* Copy Button */}
+            {/* Therapist Summary */}
+            {error && (
+              <p className="text-sm text-red-500 text-center">{error}</p>
+            )}
+            {aiSummary && <TherapistSummary summary={aiSummary} />}
+          </div>
+
+          {/* Action buttons (outside the captured area) */}
           {aiSummary && (
-            <Button
-              onClick={handleCopy}
-              variant="outline"
-              className="w-full"
-            >
-              {copied ? (
-                <>
-                  <Check className="h-4 w-4 mr-2" />
-                  Copied!
-                </>
-              ) : (
-                <>
-                  <Copy className="h-4 w-4 mr-2" />
-                  Copy Report
-                </>
-              )}
-            </Button>
+            <div className="flex gap-3">
+              <Button
+                onClick={handleCopy}
+                variant="outline"
+                className="flex-1"
+              >
+                {copied ? (
+                  <>
+                    <Check className="h-4 w-4 mr-2" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-4 w-4 mr-2" />
+                    Copy Text
+                  </>
+                )}
+              </Button>
+              <Button
+                onClick={handleDownloadImage}
+                variant="outline"
+                className="flex-1"
+                disabled={downloading}
+              >
+                {downloading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4 mr-2" />
+                    Download Image
+                  </>
+                )}
+              </Button>
+            </div>
           )}
         </>
       )}
@@ -172,7 +222,6 @@ function buildTextReport(
   lines.push(`Generated: ${format(new Date(), "MMM d, yyyy")}`);
   lines.push("");
 
-  // Mood overview
   lines.push("--- MOOD OVERVIEW ---");
   lines.push(`Entries: ${entries.length} of ${totalDays} days (${consistency}%)`);
   if (scored.length > 0) {
@@ -189,7 +238,6 @@ function buildTextReport(
   }
   lines.push("");
 
-  // Mood by day
   lines.push("--- MOOD BY DAY ---");
   for (const e of entries) {
     if (e.mood_score != null) {
@@ -199,7 +247,6 @@ function buildTextReport(
   }
   lines.push("");
 
-  // Tag breakdown
   const tagMoodMap: Record<string, { total: number; count: number }> = {};
   entries.forEach((e) => {
     (e.mood_tags || []).forEach((tag) => {
@@ -220,7 +267,6 @@ function buildTextReport(
     lines.push("");
   }
 
-  // AI summary
   if (aiSummary) {
     lines.push("--- THERAPIST SUMMARY ---");
     lines.push(aiSummary);
