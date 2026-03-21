@@ -41,10 +41,14 @@ export function ExportView({ entries, displayName }: ExportViewProps) {
   const handleDateChange = useCallback((range: { from: Date; to: Date }) => {
     setDateRange(range);
     setAiSummary(null);
+    setError(null);
   }, []);
+
+  const [error, setError] = useState<string | null>(null);
 
   const handleGenerate = async () => {
     setGenerating(true);
+    setError(null);
     try {
       const res = await fetch("/api/ai/therapist-summary", {
         method: "POST",
@@ -54,9 +58,12 @@ export function ExportView({ entries, displayName }: ExportViewProps) {
       if (res.ok) {
         const data = await res.json();
         setAiSummary(data.summary);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || `Failed (${res.status})`);
       }
-    } catch {
-      // silently fail
+    } catch (e) {
+      setError("Network error — please try again");
     }
     setGenerating(false);
   };
@@ -114,6 +121,9 @@ export function ExportView({ entries, displayName }: ExportViewProps) {
           <TagBreakdown entries={filteredEntries} />
 
           {/* Therapist Summary */}
+          {error && (
+            <p className="text-sm text-red-500 text-center">{error}</p>
+          )}
           {aiSummary && <TherapistSummary summary={aiSummary} />}
 
           {/* Copy Button */}
