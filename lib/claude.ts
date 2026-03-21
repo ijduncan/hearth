@@ -17,6 +17,24 @@ Rules:
 - Tone: like a trusted friend who mostly listens
 - Use their first name once, naturally`;
 
+const THERAPIST_SYSTEM = `You are preparing a clinical-style summary of journaling data for a mental health professional.
+This summary will be shared with a therapist, counselor, or psychiatrist to inform their sessions.
+
+Your summary should be 400-600 words and include:
+
+1. OVERVIEW: Period covered, number of entries, overall mood trajectory
+2. MOOD PATTERNS: Trends — stability, volatility, notable shifts. Include specific dates.
+3. RECURRING THEMES: Emotional themes across multiple entries. Note frequency and intensity.
+4. POTENTIAL CONCERNS: Indicators worth clinical attention — persistent low mood, energy issues, isolation, anxiety, volatility
+5. PROTECTIVE FACTORS: What helps — activities, relationships, or circumstances associated with higher moods
+6. SUGGESTED SESSION TOPICS: 2-3 areas a therapist might explore
+
+Tone: Professional, observational, precise. Write as a clinical intake note, not self-help.
+Use specific data points (dates, scores, quoted phrases from entries) to support observations.
+Do not diagnose. Do not prescribe. Present observations and let the clinician draw conclusions.
+Never use: "journey", "thrive", "delve", "insights", "growth", "amazing", "wonderful", "embrace"
+Refer to the person by first name.`;
+
 const MONTHLY_SYSTEM = `You are writing a private monthly reflection for someone who journals.
 Read their entries from the past month and write a 200-300 word summary.
 
@@ -162,6 +180,52 @@ export async function generateMonthlySummary(
       {
         role: "user",
         content: `The person's name is ${displayName}. Here are their journal entries from the past month:\n\n${entrySummaries}`,
+      },
+    ],
+  });
+
+  const block = message.content[0];
+  return block.type === "text" ? block.text : "";
+}
+
+export async function generateTherapistSummary(
+  entries: Array<{
+    entry_date: string;
+    mood_score: number | null;
+    mood_label: string | null;
+    mood_tags: string[] | null;
+    highlight: string | null;
+    challenge: string | null;
+    gratitude: string | null;
+    prompt_question: string | null;
+    prompt_answer: string | null;
+    free_write: string | null;
+  }>,
+  displayName: string,
+  periodLabel: string
+): Promise<string> {
+  const entrySummaries = entries
+    .map((e) => {
+      const parts: string[] = [`Date: ${e.entry_date}`];
+      if (e.mood_score) parts.push(`Mood: ${e.mood_score}/10 (${e.mood_label})`);
+      if (e.mood_tags?.length) parts.push(`Tags: ${e.mood_tags.join(", ")}`);
+      if (e.highlight) parts.push(`Highlight: ${e.highlight}`);
+      if (e.challenge) parts.push(`Challenge: ${e.challenge}`);
+      if (e.gratitude) parts.push(`Grateful for: ${e.gratitude}`);
+      if (e.prompt_answer) parts.push(`Prompt answer: ${e.prompt_answer}`);
+      if (e.free_write) parts.push(`Free write: ${e.free_write}`);
+      return parts.join("\n");
+    })
+    .join("\n---\n");
+
+  const message = await anthropic.messages.create({
+    model: "claude-opus-4-6-20250415",
+    max_tokens: 1200,
+    system: THERAPIST_SYSTEM,
+    messages: [
+      {
+        role: "user",
+        content: `The person's name is ${displayName}. The report covers ${periodLabel}.\n\nHere are their journal entries:\n\n${entrySummaries}`,
       },
     ],
   });

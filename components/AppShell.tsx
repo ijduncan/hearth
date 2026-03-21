@@ -8,6 +8,7 @@ import {
   BookOpen,
   BarChart3,
   CalendarDays,
+  FileText,
   Settings,
   LogOut,
 } from "lucide-react";
@@ -18,6 +19,7 @@ const NAV_ITEMS = [
   { href: "/", label: "Today", icon: BookOpen },
   { href: "/history", label: "History", icon: CalendarDays },
   { href: "/insights", label: "Insights", icon: BarChart3 },
+  { href: "/export", label: "Export", icon: FileText },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
