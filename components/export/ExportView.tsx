@@ -113,6 +113,31 @@ export function ExportView({ entries, displayName }: ExportViewProps) {
     setCopying(false);
   };
 
+  const copyButton = aiSummary ? (
+    <Button
+      onClick={handleCopyReport}
+      variant="outline"
+      disabled={copying}
+    >
+      {copying ? (
+        <>
+          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+          Preparing...
+        </>
+      ) : copied ? (
+        <>
+          <Check className="h-4 w-4 mr-2" />
+          Copied!
+        </>
+      ) : (
+        <>
+          <Copy className="h-4 w-4 mr-2" />
+          Copy Report
+        </>
+      )}
+    </Button>
+  ) : null;
+
   return (
     <div className="space-y-6">
       {/* Controls */}
@@ -128,6 +153,7 @@ export function ExportView({ entries, displayName }: ExportViewProps) {
             "Generate Report"
           )}
         </Button>
+        {copyButton}
         <span className="text-xs text-muted-foreground">
           {filteredEntries.length} entries found ({entries.length} total)
         </span>
@@ -173,32 +199,8 @@ export function ExportView({ entries, displayName }: ExportViewProps) {
           )}
           {aiSummary && <TherapistSummary summary={aiSummary} />}
 
-          {/* Copy Button */}
-          {aiSummary && (
-            <Button
-              onClick={handleCopyReport}
-              variant="outline"
-              className="w-full"
-              disabled={copying}
-            >
-              {copying ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Preparing...
-                </>
-              ) : copied ? (
-                <>
-                  <Check className="h-4 w-4 mr-2" />
-                  Copied!
-                </>
-              ) : (
-                <>
-                  <Copy className="h-4 w-4 mr-2" />
-                  Copy Report
-                </>
-              )}
-            </Button>
-          )}
+          {/* Copy Button (bottom) */}
+          {copyButton}
         </>
       )}
     </div>
