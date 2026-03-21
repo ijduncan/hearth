@@ -57,9 +57,11 @@ export async function POST(request: Request) {
     );
 
     return NextResponse.json({ summary });
-  } catch {
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Unknown error";
+    console.error("Therapist summary error:", message);
     return NextResponse.json(
-      { error: "Failed to generate therapist summary" },
+      { error: `Failed to generate therapist summary: ${message}` },
       { status: 500 }
     );
   }
