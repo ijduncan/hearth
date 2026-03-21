@@ -90,11 +90,14 @@ export function ExportView({ entries, displayName }: ExportViewProps) {
             "Generate Report"
           )}
         </Button>
+        <span className="text-xs text-muted-foreground">
+          {filteredEntries.length} entries found ({entries.length} total)
+        </span>
       </div>
 
       {filteredEntries.length === 0 ? (
         <p className="text-sm text-muted-foreground text-center py-8">
-          No entries in this date range.
+          No entries in this date range. Try widening the range.
         </p>
       ) : (
         <>
