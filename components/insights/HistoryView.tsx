@@ -24,10 +24,19 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search, CalendarDays } from "lucide-react";
 import { getMoodColor, MOOD_TAGS } from "@/lib/types";
 import { getTodaysPrompt } from "@/lib/prompts";
 import { EntryForm } from "@/components/journal/EntryForm";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Calendar } from "@/components/ui/calendar";
 import type { Entry } from "@/lib/types";
 import { searchEntries, highlightText } from "@/lib/search";
 
@@ -44,6 +53,10 @@ export function HistoryView({ entries, profileName = "friend", onEntrySaved }: H
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [filterTag, setFilterTag] = useState<string | null>(null);
+  const [moveDialogOpen, setMoveDialogOpen] = useState(false);
+  const [moveTargetDate, setMoveTargetDate] = useState<Date | undefined>();
+  const [moveError, setMoveError] = useState<string | null>(null);
+  const [moveLoading, setMoveLoading] = useState(false);
 
   // Debounce search input
   useEffect(() => {
@@ -61,6 +74,38 @@ export function HistoryView({ entries, profileName = "friend", onEntrySaved }: H
     () => searchEntries(entries, debouncedQuery, filterTag),
     [entries, debouncedQuery, filterTag]
   );
+
+  const entryDates = useMemo(
+    () => new Set(entries.map((e) => e.entry_date)),
+    [entries]
+  );
+
+  async function handleMoveEntry() {
+    if (!selectedEntry || !moveTargetDate) return;
+    setMoveLoading(true);
+    setMoveError(null);
+    try {
+      const newDate = format(moveTargetDate, "yyyy-MM-dd");
+      const res = await fetch("/api/entries/move", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entryId: selectedEntry.id, newDate }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setMoveError(data.error || "Failed to move entry");
+        return;
+      }
+      setMoveDialogOpen(false);
+      setSelectedEntry(null);
+      setMoveTargetDate(undefined);
+      onEntrySaved?.();
+    } catch {
+      setMoveError("Something went wrong");
+    } finally {
+      setMoveLoading(false);
+    }
+  }
 
   // Calendar grid
   const monthStart = startOfMonth(currentMonth);
@@ -271,20 +316,86 @@ export function HistoryView({ entries, profileName = "friend", onEntrySaved }: H
         </SheetContent>
       </Sheet>
 
+      {/* Move entry dialog */}
+      <Dialog
+        open={moveDialogOpen}
+        onOpenChange={(open) => {
+          setMoveDialogOpen(open);
+          if (!open) {
+            setMoveTargetDate(undefined);
+            setMoveError(null);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Move entry</DialogTitle>
+            <DialogDescription>
+              {selectedEntry && (
+                <>
+                  Move your {format(parseISO(selectedEntry.entry_date), "MMMM d")} entry to a new date.
+                  Days that already have an entry are disabled.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-center">
+            <Calendar
+              mode="single"
+              selected={moveTargetDate}
+              onSelect={setMoveTargetDate}
+              disabled={(date) => {
+                const dateStr = format(date, "yyyy-MM-dd");
+                // Disable dates that already have entries (except the current entry's date)
+                if (
+                  entryDates.has(dateStr) &&
+                  dateStr !== selectedEntry?.entry_date
+                ) {
+                  return true;
+                }
+                // Disable future dates
+                if (date > new Date()) return true;
+                return false;
+              }}
+              defaultMonth={
+                selectedEntry
+                  ? parseISO(selectedEntry.entry_date)
+                  : new Date()
+              }
+            />
+          </div>
+          {moveError && (
+            <p className="text-sm text-destructive text-center">{moveError}</p>
+          )}
+          <DialogFooter>
+            <Button
+              disabled={!moveTargetDate || moveLoading}
+              onClick={handleMoveEntry}
+            >
+              {moveLoading
+                ? "Moving..."
+                : moveTargetDate
+                  ? `Move to ${format(moveTargetDate, "MMM d")}`
+                  : "Select a date"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Entry drawer */}
       <Sheet
         open={!!selectedEntry}
         onOpenChange={(open) => !open && setSelectedEntry(null)}
       >
-        <SheetContent className="overflow-y-auto px-6">
+        <SheetContent className="px-6">
           {selectedEntry && (
-            <>
+            <div className="flex flex-col h-full overflow-hidden">
               <SheetHeader>
                 <SheetTitle className="font-serif">
                   {format(parseISO(selectedEntry.entry_date), "EEEE, MMMM d")}
                 </SheetTitle>
               </SheetHeader>
-              <div className="space-y-6 mt-6">
+              <div className="space-y-6 mt-6 overflow-y-auto flex-1 pb-6">
                 {selectedEntry.mood_score && (
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">Mood</p>
@@ -361,8 +472,24 @@ export function HistoryView({ entries, profileName = "friend", onEntrySaved }: H
                     </p>
                   </div>
                 )}
+
+                <div className="pt-2 border-t">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => {
+                      setMoveTargetDate(undefined);
+                      setMoveError(null);
+                      setMoveDialogOpen(true);
+                    }}
+                  >
+                    <CalendarDays className="h-4 w-4 mr-2" />
+                    Move to different date
+                  </Button>
+                </div>
               </div>
-            </>
+            </div>
           )}
         </SheetContent>
       </Sheet>
