@@ -13,6 +13,7 @@ import {
   LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import type { Profile } from "@/lib/types";
 
 const NAV_ITEMS = [
@@ -54,6 +55,7 @@ export function AppShell({
             <span className="text-sm text-muted-foreground">
               {profile?.avatar_emoji} {profile?.display_name}
             </span>
+            <ThemeToggle />
             <Button variant="ghost" size="icon" onClick={handleSignOut} className="h-8 w-8">
               <LogOut className="h-4 w-4" />
             </Button>
