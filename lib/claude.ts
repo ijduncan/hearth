@@ -4,6 +4,36 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
+// Keep model IDs configurable so provider retirements do not require code changes.
+// The previous Claude 4 launch IDs were removed from the API in 2026 and returned 404s.
+const REFLECTION_MODEL =
+  process.env.ANTHROPIC_REFLECTION_MODEL || "claude-sonnet-4-6";
+const THERAPIST_MODEL =
+  process.env.ANTHROPIC_THERAPIST_MODEL || "claude-opus-4-8";
+
+async function createMessage(
+  params: Anthropic.MessageCreateParamsNonStreaming
+): Promise<Anthropic.Message> {
+  try {
+    return await anthropic.messages.create(params);
+  } catch (error) {
+    const apiError = error as {
+      status?: number;
+      message?: string;
+      request_id?: string;
+      error?: { type?: string };
+    };
+    console.error("Anthropic generation failed", {
+      model: params.model,
+      status: apiError.status,
+      type: apiError.error?.type,
+      requestId: apiError.request_id,
+      message: apiError.message,
+    });
+    throw error;
+  }
+}
+
 const REFLECT_SYSTEM = `You are a quiet, warm presence — not a therapist, coach, or advisor.
 Your only job is to acknowledge what someone just shared in their journal.
 
@@ -89,8 +119,8 @@ export async function generateAcknowledgment(
   if (entryData.gratitude) parts.push(`Grateful for: ${entryData.gratitude}`);
   if (entryData.free_write) parts.push(`Free write: ${entryData.free_write}`);
 
-  const message = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
+  const message = await createMessage({
+    model: REFLECTION_MODEL,
     max_tokens: 300,
     system: REFLECT_SYSTEM,
     messages: [
@@ -132,8 +162,8 @@ export async function generateWeeklySummary(
     })
     .join("\n---\n");
 
-  const message = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
+  const message = await createMessage({
+    model: REFLECTION_MODEL,
     max_tokens: 500,
     system: SUMMARY_SYSTEM,
     messages: [
@@ -175,8 +205,8 @@ export async function generateMonthlySummary(
     })
     .join("\n---\n");
 
-  const message = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
+  const message = await createMessage({
+    model: REFLECTION_MODEL,
     max_tokens: 700,
     system: MONTHLY_SYSTEM,
     messages: [
@@ -221,8 +251,8 @@ export async function generateTherapistSummary(
     })
     .join("\n---\n");
 
-  const message = await anthropic.messages.create({
-    model: "claude-opus-4-20250514",
+  const message = await createMessage({
+    model: THERAPIST_MODEL,
     max_tokens: 1200,
     system: THERAPIST_SYSTEM,
     messages: [
