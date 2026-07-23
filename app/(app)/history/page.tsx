@@ -8,26 +8,16 @@ export default async function HistoryPage() {
 
   if (!user) redirect("/login");
 
-  const [{ data: entries }, { data: profile }] = await Promise.all([
-    supabase
-      .from("entries")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("entry_date", { ascending: false }),
-    supabase
-      .from("profiles")
-      .select("display_name")
-      .eq("id", user.id)
-      .single(),
-  ]);
+  const { data: entries } = await supabase
+    .from("entries")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("entry_date", { ascending: false });
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-serif font-semibold">History</h1>
-      <HistoryClient
-        entries={entries || []}
-        profileName={profile?.display_name || "friend"}
-      />
+      <HistoryClient entries={entries || []} />
     </div>
   );
 }

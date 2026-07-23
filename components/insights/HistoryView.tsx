@@ -42,11 +42,10 @@ import { searchEntries, highlightText } from "@/lib/search";
 
 interface HistoryViewProps {
   entries: Entry[];
-  profileName?: string;
   onEntrySaved?: () => void;
 }
 
-export function HistoryView({ entries, profileName = "friend", onEntrySaved }: HistoryViewProps) {
+export function HistoryView({ entries, onEntrySaved }: HistoryViewProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedEntry, setSelectedEntry] = useState<Entry | null>(null);
   const [catchUpDate, setCatchUpDate] = useState<string | null>(null);
@@ -303,7 +302,6 @@ export function HistoryView({ entries, profileName = "friend", onEntrySaved }: H
                 <EntryForm
                   todaysPrompt={getTodaysPrompt(parseISO(catchUpDate))}
                   existingEntry={null}
-                  profileName={profileName}
                   entryDate={catchUpDate}
                   onSaved={() => {
                     setCatchUpDate(null);

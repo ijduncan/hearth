@@ -21,7 +21,7 @@ export default async function AppLayout({
     .single();
 
   return (
-    <AppShell profile={profile} userId={user.id}>
+    <AppShell profile={profile}>
       {children}
     </AppShell>
   );

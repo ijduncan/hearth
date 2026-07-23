@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   try {
     const acknowledgment = await generateAcknowledgment(entry, userDisplayName);
     return NextResponse.json({ acknowledgment });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: "Failed to generate acknowledgment" },
       { status: 500 }

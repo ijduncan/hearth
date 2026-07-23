@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TrendingUp, TrendingDown, CalendarDays, Tag } from "lucide-react";
+import { TrendingUp, CalendarDays, Tag } from "lucide-react";
 import { detectAllPatterns, type MoodPattern } from "@/lib/patterns";
 import type { Entry } from "@/lib/types";
 

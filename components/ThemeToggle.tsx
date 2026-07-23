@@ -1,21 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { Sun, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function ThemeToggle() {
-  const [dark, setDark] = useState(false);
-
-  useEffect(() => {
-    setDark(document.documentElement.classList.contains("dark"));
-  }, []);
+  const dark = useSyncExternalStore(
+    (onStoreChange) => {
+      window.addEventListener("hearth-theme-change", onStoreChange);
+      return () =>
+        window.removeEventListener("hearth-theme-change", onStoreChange);
+    },
+    () => document.documentElement.classList.contains("dark"),
+    () => false
+  );
 
   const toggle = () => {
     const next = !dark;
-    setDark(next);
     document.documentElement.classList.toggle("dark", next);
     localStorage.setItem("theme", next ? "dark" : "light");
+    window.dispatchEvent(new Event("hearth-theme-change"));
   };
 
   return (

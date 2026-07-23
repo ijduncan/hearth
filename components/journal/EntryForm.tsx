@@ -15,7 +15,6 @@ import type { Prompt, Entry } from "@/lib/types";
 interface EntryFormProps {
   todaysPrompt: Prompt;
   existingEntry: Entry | null;
-  profileName: string;
   entryDate?: string; // YYYY-MM-DD, defaults to today
   onSaved?: () => void;
 }
@@ -25,7 +24,6 @@ type Step = "mood" | "questions" | "freewrite" | "submitting" | "done";
 export function EntryForm({
   todaysPrompt,
   existingEntry,
-  profileName,
   entryDate,
   onSaved,
 }: EntryFormProps) {

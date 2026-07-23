@@ -26,11 +26,9 @@ const NAV_ITEMS = [
 
 export function AppShell({
   profile,
-  userId,
   children,
 }: {
   profile: Profile | null;
-  userId: string;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();

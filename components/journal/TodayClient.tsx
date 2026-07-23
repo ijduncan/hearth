@@ -1,6 +1,5 @@
 "use client";
 
-import { useMemo } from "react";
 import { getTodaysPrompt } from "@/lib/prompts";
 import { EntryForm } from "./EntryForm";
 import type { Profile, Entry } from "@/lib/types";
@@ -14,10 +13,8 @@ export function TodayClient({ profile, recentEntries }: TodayClientProps) {
   const localDate = new Date();
   const localDateStr = localDate.toLocaleDateString("en-CA"); // YYYY-MM-DD
 
-  const existingEntry = useMemo(
-    () => recentEntries.find((e) => e.entry_date === localDateStr) || null,
-    [recentEntries, localDateStr]
-  );
+  const existingEntry =
+    recentEntries.find((e) => e.entry_date === localDateStr) || null;
 
   const todaysPrompt = getTodaysPrompt(localDate);
 
@@ -40,7 +37,6 @@ export function TodayClient({ profile, recentEntries }: TodayClientProps) {
       <EntryForm
         todaysPrompt={todaysPrompt}
         existingEntry={existingEntry}
-        profileName={profile?.display_name || "friend"}
       />
     </div>
   );
