@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateAcknowledgment } from "@/lib/claude";
+import { checkRateLimit } from "@/lib/security";
+import { validateEntryInput } from "@/lib/validation";
 
 export async function GET() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -17,7 +21,11 @@ export async function GET() {
     .order("entry_date", { ascending: false });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Failed to load entries:", error.message);
+    return NextResponse.json(
+      { error: "Failed to load entries" },
+      { status: 500 }
+    );
   }
 
   return NextResponse.json(data);
@@ -25,40 +33,51 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json();
+  const rateLimit = await checkRateLimit(supabase, "entries", 20, 60);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests" },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
+      }
+    );
+  }
 
-  // Get profile for display name
+  let rawBody: unknown;
+  try {
+    rawBody = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const validated = validateEntryInput(rawBody);
+  if (!validated.data) {
+    return NextResponse.json({ error: validated.error }, { status: 400 });
+  }
+  const body = validated.data;
+  const { prompt_category: promptCategory, ...entryData } = body;
+
   const { data: profile } = await supabase
     .from("profiles")
-    .select("display_name, streak_count, last_entry_date")
+    .select("display_name")
     .eq("id", user.id)
     .single();
 
-  // Upsert entry (one per user per day)
   const { data: entry, error } = await supabase
     .from("entries")
     .upsert(
       {
         user_id: user.id,
-        entry_date: body.entry_date || new Date().toISOString().split("T")[0],
-        mood_score: body.mood_score,
-        mood_label: body.mood_label,
-        mood_tags: body.mood_tags,
-        prompt_question: body.prompt_question,
-        prompt_answer: body.prompt_answer,
-        highlight: body.highlight,
-        challenge: body.challenge,
-        gratitude: body.gratitude,
-        free_write: body.free_write,
-        word_count: body.word_count,
-        entry_duration_seconds: body.entry_duration_seconds,
-        voice_used: body.voice_used ?? false,
+        ...entryData,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "user_id,entry_date" }
@@ -66,11 +85,14 @@ export async function POST(request: Request) {
     .select()
     .single();
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error || !entry) {
+    console.error("Failed to save entry:", error?.message ?? "No row returned");
+    return NextResponse.json(
+      { error: "Failed to save entry" },
+      { status: 500 }
+    );
   }
 
-  // Generate AI acknowledgment
   let aiAcknowledgment = "";
   try {
     aiAcknowledgment = await generateAcknowledgment(
@@ -87,32 +109,39 @@ export async function POST(request: Request) {
       profile?.display_name || "friend"
     );
 
-    // Save acknowledgment back to entry
-    await supabase
+    const { error: acknowledgmentError } = await supabase
       .from("entries")
       .update({
         ai_acknowledgment: aiAcknowledgment,
         ai_generated_at: new Date().toISOString(),
       })
-      .eq("id", entry.id);
+      .eq("id", entry.id)
+      .eq("user_id", user.id);
+
+    if (acknowledgmentError) {
+      console.error("Failed to save AI acknowledgment:", acknowledgmentError.message);
+    }
   } catch {
-    // AI generation failed — entry is still saved
+    // The journal entry remains saved if the provider is temporarily unavailable.
   }
 
-  // Update streak
-  const today = body.entry_date || new Date().toISOString().split("T")[0];
+  const today = body.entry_date;
 
-  // Record prompt interaction as answered (if prompt was answered)
   if (body.prompt_question && body.prompt_answer) {
-    await supabase.from("prompt_interactions").insert({
-      user_id: user.id,
-      prompt_text: body.prompt_question,
-      prompt_category: body.prompt_category || "",
-      interaction_type: "answered",
-      entry_date: today,
-    });
+    const { error: interactionError } = await supabase
+      .from("prompt_interactions")
+      .insert({
+        user_id: user.id,
+        prompt_text: body.prompt_question,
+        prompt_category: promptCategory || "general",
+        interaction_type: "answered",
+        entry_date: today,
+      });
+    if (interactionError) {
+      console.error("Failed to record prompt interaction:", interactionError.message);
+    }
   }
-  // Calculate streak from actual entries
+
   const { data: recentEntries } = await supabase
     .from("entries")
     .select("entry_date")
@@ -122,19 +151,22 @@ export async function POST(request: Request) {
 
   let newStreak = 0;
   if (recentEntries && recentEntries.length > 0) {
-    const entryDates = new Set(recentEntries.map((e) => e.entry_date));
-    const checkDate = new Date(today + "T00:00:00");
+    const entryDates = new Set(recentEntries.map((item) => item.entry_date));
+    const checkDate = new Date(`${today}T00:00:00`);
     while (entryDates.has(checkDate.toISOString().split("T")[0])) {
-      newStreak++;
+      newStreak += 1;
       checkDate.setDate(checkDate.getDate() - 1);
     }
   }
-  if (newStreak === 0) newStreak = 1; // just saved today
+  if (newStreak === 0) newStreak = 1;
 
-  await supabase
+  const { error: profileError } = await supabase
     .from("profiles")
     .update({ streak_count: newStreak, last_entry_date: today })
     .eq("id", user.id);
+  if (profileError) {
+    console.error("Failed to update streak:", profileError.message);
+  }
 
   return NextResponse.json({
     entry,

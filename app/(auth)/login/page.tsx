@@ -14,9 +14,7 @@ export default function LoginPage() {
   const [error, setError] = useState(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
-      const detail = params.get("detail");
       const err = params.get("error");
-      if (detail) return `Auth error: ${detail}`;
       if (err === "unauthorized") return "This email is not authorised to use Hearth.";
       if (err) return `Authentication failed (${err}). Please try again.`;
     }

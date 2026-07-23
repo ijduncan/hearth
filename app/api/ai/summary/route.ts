@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateWeeklySummary } from "@/lib/claude";
 import { startOfWeek, endOfWeek, format } from "date-fns";
+import { checkRateLimit } from "@/lib/security";
+import { isValidDateString, parseJsonObject } from "@/lib/validation";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -11,8 +13,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json();
-  const targetDate = body.date ? new Date(body.date) : new Date();
+  const rateLimit = await checkRateLimit(supabase, "weekly-summary", 5, 15 * 60);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "Too many summary requests" },
+      { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } }
+    );
+  }
+
+  let body: Record<string, unknown> | null = null;
+  try {
+    body = parseJsonObject(await request.json());
+  } catch {
+    // An empty object is allowed.
+  }
+  if (body?.date != null && !isValidDateString(body.date)) {
+    return NextResponse.json({ error: "date must be YYYY-MM-DD" }, { status: 400 });
+  }
+  const targetDate = body?.date
+    ? new Date(`${body.date as string}T00:00:00`)
+    : new Date();
 
   const weekStart = startOfWeek(targetDate, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(targetDate, { weekStartsOn: 1 });
@@ -92,7 +112,8 @@ export async function POST(request: Request) {
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error("Failed to save weekly summary:", error.message);
+      return NextResponse.json({ error: "Failed to save summary" }, { status: 500 });
     }
 
     return NextResponse.json(summary);

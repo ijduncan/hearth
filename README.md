@@ -65,9 +65,12 @@ Built with Next.js 14, Supabase, and Claude.
    - `ALLOWED_EMAILS` — comma-separated list of allowed email addresses
    - `CRON_SECRET` — any random string for cron job auth
 
-4. Run the database migration:
-   - Go to Supabase Dashboard > SQL Editor
-   - Paste and run `supabase/migrations/001_initial.sql`
+4. Apply all database migrations and sync the private allowlist:
+   ```bash
+   npx supabase link --project-ref YOUR_PROJECT_REF
+   npx supabase db push
+   npm run security:sync-allowlist
+   ```
 
 5. Start the dev server:
    ```bash
@@ -78,12 +81,14 @@ Built with Next.js 14, Supabase, and Claude.
 
 ### Restricting Access
 
-Set `ALLOWED_EMAILS` in your environment to restrict who can sign up:
+Set `ALLOWED_EMAILS` in your environment to restrict access:
 ```
 ALLOWED_EMAILS=alice@example.com,bob@example.com
 ```
 
-After your accounts are created, you can also disable new signups in the Supabase Dashboard under Authentication > Settings.
+After changing the list, run `npm run security:sync-allowlist`. Access is
+enforced both by the application and by Supabase row-level security. Unknown
+addresses are rejected by the database even if someone bypasses the web app.
 
 ## Deploying to Vercel
 
@@ -114,7 +119,6 @@ app/
     settings/       — Profile settings
   api/
     entries/        — CRUD for journal entries
-    ai/reflect/     — AI acknowledgment generation
     ai/summary/     — Weekly AI summary generation
     cron/           — Cron job endpoints
 components/

@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateTherapistSummary } from "@/lib/claude";
-import { format } from "date-fns";
+import { differenceInCalendarDays, format } from "date-fns";
+import { checkRateLimit } from "@/lib/security";
+import { isValidDateString, parseJsonObject } from "@/lib/validation";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -13,13 +15,36 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json();
-  const startDate: string = body.startDate;
-  const endDate: string = body.endDate;
-
-  if (!startDate || !endDate) {
+  const rateLimit = await checkRateLimit(supabase, "therapist-summary", 2, 60 * 60);
+  if (!rateLimit.allowed) {
     return NextResponse.json(
-      { error: "startDate and endDate are required" },
+      { error: "Too many report requests" },
+      { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } }
+    );
+  }
+
+  let body: Record<string, unknown> | null = null;
+  try {
+    body = parseJsonObject(await request.json());
+  } catch {
+    // Handled by validation below.
+  }
+  const startDate = body?.startDate;
+  const endDate = body?.endDate;
+
+  if (!isValidDateString(startDate) || !isValidDateString(endDate)) {
+    return NextResponse.json(
+      { error: "startDate and endDate must be YYYY-MM-DD" },
+      { status: 400 }
+    );
+  }
+
+  const start = new Date(`${startDate}T00:00:00`);
+  const end = new Date(`${endDate}T00:00:00`);
+  const daySpan = differenceInCalendarDays(end, start);
+  if (daySpan < 0 || daySpan > 365) {
+    return NextResponse.json(
+      { error: "Report period must be between 1 and 366 days" },
       { status: 400 }
     );
   }
@@ -31,7 +56,8 @@ export async function POST(request: Request) {
     .eq("user_id", user.id)
     .gte("entry_date", startDate)
     .lte("entry_date", endDate)
-    .order("entry_date");
+    .order("entry_date")
+    .limit(366);
 
   if (!entries || entries.length === 0) {
     return NextResponse.json(
@@ -61,7 +87,7 @@ export async function POST(request: Request) {
     const message = e instanceof Error ? e.message : "Unknown error";
     console.error("Therapist summary error:", message);
     return NextResponse.json(
-      { error: `Failed to generate therapist summary: ${message}` },
+      { error: "Failed to generate therapist summary" },
       { status: 500 }
     );
   }

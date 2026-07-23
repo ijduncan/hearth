@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateMonthlySummary } from "@/lib/claude";
 import { startOfMonth, endOfMonth, format, subMonths } from "date-fns";
+import { checkRateLimit } from "@/lib/security";
+import { isValidDateString, parseJsonObject } from "@/lib/validation";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -13,10 +15,29 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json();
+  const rateLimit = await checkRateLimit(supabase, "monthly-summary", 5, 15 * 60);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "Too many summary requests" },
+      { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } }
+    );
+  }
+
+  let body: Record<string, unknown> | null = null;
+  try {
+    body = parseJsonObject(await request.json());
+  } catch {
+    // An empty object is allowed.
+  }
+  if (body?.date != null && !isValidDateString(body.date)) {
+    return NextResponse.json({ error: "date must be YYYY-MM-DD" }, { status: 400 });
+  }
+  if (body?.regenerate != null && typeof body.regenerate !== "boolean") {
+    return NextResponse.json({ error: "regenerate must be a boolean" }, { status: 400 });
+  }
   // Default to previous month if no date provided
-  const targetDate = body.date
-    ? new Date(body.date)
+  const targetDate = body?.date
+    ? new Date(`${body.date as string}T00:00:00`)
     : subMonths(new Date(), 1);
 
   const monthStart = startOfMonth(targetDate);
@@ -32,7 +53,7 @@ export async function POST(request: Request) {
     .eq("month_start", monthStartStr)
     .single();
 
-  if (existing && !body.regenerate) {
+  if (existing && !body?.regenerate) {
     return NextResponse.json(existing);
   }
 
@@ -97,7 +118,8 @@ export async function POST(request: Request) {
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error("Failed to save monthly summary:", error.message);
+      return NextResponse.json({ error: "Failed to save monthly summary" }, { status: 500 });
     }
 
     return NextResponse.json(summary);

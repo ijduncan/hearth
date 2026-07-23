@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { isValidDateString, parseJsonObject } from "@/lib/validation";
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export async function PATCH(request: Request) {
   const supabase = await createClient();
@@ -9,19 +12,18 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { entryId, newDate } = await request.json();
-
-  if (!entryId || !newDate) {
-    return NextResponse.json(
-      { error: "entryId and newDate are required" },
-      { status: 400 }
-    );
+  let body: Record<string, unknown> | null = null;
+  try {
+    body = parseJsonObject(await request.json());
+  } catch {
+    // Handled by validation below.
   }
+  const entryId = body?.entryId;
+  const newDate = body?.newDate;
 
-  // Validate date format
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate)) {
+  if (typeof entryId !== "string" || !UUID.test(entryId) || !isValidDateString(newDate)) {
     return NextResponse.json(
-      { error: "newDate must be YYYY-MM-DD" },
+      { error: "A valid entryId and YYYY-MM-DD newDate are required" },
       { status: 400 }
     );
   }
@@ -70,8 +72,9 @@ export async function PATCH(request: Request) {
     .single();
 
   if (updateError) {
+    console.error("Failed to move entry:", updateError.message);
     return NextResponse.json(
-      { error: updateError.message },
+      { error: "Failed to move entry" },
       { status: 500 }
     );
   }
