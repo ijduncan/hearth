@@ -82,6 +82,9 @@ export const MOOD_LABELS: Record<number, string> = {
   10: "Brilliant",
 };
 
+export const MAX_MOOD_TAGS = 10;
+export const MAX_MOOD_TAG_LENGTH = 40;
+
 export const MOOD_TAGS = [
   "work",
   "family",

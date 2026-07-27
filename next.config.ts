@@ -21,6 +21,11 @@ function getSupabaseConnectSources(): string[] {
 }
 
 const connectSources = ["'self'", ...getSupabaseConnectSources()].join(" ");
+const scriptSources = [
+  "'self'",
+  "'unsafe-inline'",
+  ...(process.env.NODE_ENV === "development" ? ["'unsafe-eval'"] : []),
+].join(" ");
 
 const contentSecurityPolicy = [
   "default-src 'self'",
@@ -28,7 +33,7 @@ const contentSecurityPolicy = [
   "object-src 'none'",
   "frame-ancestors 'none'",
   "form-action 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  `script-src ${scriptSources}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",

@@ -54,7 +54,13 @@ export function AppShell({
               {profile?.avatar_emoji} {profile?.display_name}
             </span>
             <ThemeToggle />
-            <Button variant="ghost" size="icon" onClick={handleSignOut} className="h-8 w-8">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleSignOut}
+              aria-label="Sign out"
+              className="h-8 w-8"
+            >
               <LogOut className="h-4 w-4" />
             </Button>
           </div>

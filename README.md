@@ -1,7 +1,7 @@
 # Hearth
 
 A private, self-hosted AI journaling app for couples or small households.
-Built with Next.js 14, Supabase, and Claude.
+Built with Next.js 16, Supabase, and Claude.
 
 **Core philosophy:** Two minutes. Three questions. No blank page. An AI that listens — not lectures.
 
@@ -28,7 +28,7 @@ Built with Next.js 14, Supabase, and Claude.
 
 | Layer | Choice |
 |---|---|
-| Framework | Next.js 14 (App Router) |
+| Framework | Next.js 16 (App Router) |
 | Database | Supabase (Postgres + Auth) |
 | AI | Anthropic Claude API |
 | Styling | Tailwind CSS + shadcn/ui |

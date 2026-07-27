@@ -53,6 +53,7 @@
 }
 
 :root {
+  font-size: 106.25%;
   --background: #FAFAF8;
   --foreground: #1C1917;
   --card: #FFFFFF;
@@ -81,6 +82,12 @@
   --chart-4: #F59E0B;
   --chart-5: #78716C;
   --radius: 0.625rem;
+}
+
+@media (max-width: 639px) {
+  :root {
+    font-size: 118.75%;
+  }
 }
 
 .dark {

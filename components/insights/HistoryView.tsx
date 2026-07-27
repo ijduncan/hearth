@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, type FormEvent } from "react";
 import {
   format,
   parseISO,
@@ -24,8 +24,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { ChevronLeft, ChevronRight, Search, CalendarDays } from "lucide-react";
-import { getMoodColor, MOOD_TAGS } from "@/lib/types";
+import { ChevronLeft, ChevronRight, Search, CalendarDays, Plus } from "lucide-react";
+import {
+  getMoodColor,
+  MAX_MOOD_TAG_LENGTH,
+  MOOD_TAGS,
+  type Entry,
+} from "@/lib/types";
 import { getTodaysPrompt } from "@/lib/prompts";
 import { EntryForm } from "@/components/journal/EntryForm";
 import {
@@ -37,7 +42,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Calendar } from "@/components/ui/calendar";
-import type { Entry } from "@/lib/types";
 import { searchEntries, highlightText } from "@/lib/search";
 
 interface HistoryViewProps {
@@ -52,6 +56,7 @@ export function HistoryView({ entries, onEntrySaved }: HistoryViewProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [filterTag, setFilterTag] = useState<string | null>(null);
+  const [customFilterTag, setCustomFilterTag] = useState("");
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [moveTargetDate, setMoveTargetDate] = useState<Date | undefined>();
   const [moveError, setMoveError] = useState<string | null>(null);
@@ -69,6 +74,26 @@ export function HistoryView({ entries, onEntrySaved }: HistoryViewProps) {
     return map;
   }, [entries]);
 
+  const availableTags = useMemo(() => {
+    const tags = new Map<string, string>();
+    MOOD_TAGS.forEach((tag) => tags.set(tag.toLowerCase(), tag));
+    entries.forEach((entry) => {
+      entry.mood_tags?.forEach((tag) => {
+        const trimmedTag = tag.trim();
+        if (trimmedTag && !tags.has(trimmedTag.toLowerCase())) {
+          tags.set(trimmedTag.toLowerCase(), trimmedTag);
+        }
+      });
+    });
+    return [...tags.values()];
+  }, [entries]);
+
+  const visibleFilterTags =
+    filterTag &&
+    !availableTags.some((tag) => tag.toLowerCase() === filterTag.toLowerCase())
+      ? [...availableTags, filterTag]
+      : availableTags;
+
   const searchResults = useMemo(
     () => searchEntries(entries, debouncedQuery, filterTag),
     [entries, debouncedQuery, filterTag]
@@ -78,6 +103,20 @@ export function HistoryView({ entries, onEntrySaved }: HistoryViewProps) {
     () => new Set(entries.map((e) => e.entry_date)),
     [entries]
   );
+
+  function handleCustomFilterSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const tag = customFilterTag.trim().replace(/\s+/g, " ");
+    if (!tag) return;
+
+    const matchingTag = availableTags.find(
+      (availableTag) => availableTag.toLowerCase() === tag.toLowerCase()
+    );
+
+    setFilterTag(matchingTag ?? tag);
+    setCustomFilterTag("");
+  }
 
   async function handleMoveEntry() {
     if (!selectedEntry || !moveTargetDate) return;
@@ -127,17 +166,46 @@ export function HistoryView({ entries, onEntrySaved }: HistoryViewProps) {
           />
         </div>
         <div className="flex flex-wrap gap-2">
-          {MOOD_TAGS.map((tag) => (
+          {visibleFilterTags.map((tag) => (
             <Badge
               key={tag}
+              render={<button type="button" />}
               variant={filterTag === tag ? "default" : "outline"}
+              aria-pressed={filterTag === tag}
               className="cursor-pointer select-none"
-              onClick={() => setFilterTag(filterTag === tag ? null : tag)}
+              onClick={() =>
+                setFilterTag((currentTag) => (currentTag === tag ? null : tag))
+              }
             >
               {tag}
             </Badge>
           ))}
         </div>
+        <form
+          onSubmit={handleCustomFilterSubmit}
+          className="flex items-center gap-2"
+        >
+          <Input
+            value={customFilterTag}
+            onChange={(event) => setCustomFilterTag(event.target.value)}
+            maxLength={MAX_MOOD_TAG_LENGTH}
+            placeholder="Filter by another word..."
+            aria-label="Custom mood tag filter"
+            className="h-9"
+          />
+          <Button
+            type="submit"
+            size="icon"
+            aria-label="Add custom mood tag filter"
+            disabled={!customFilterTag.trim()}
+            className="h-9 w-9"
+          >
+            <Plus aria-hidden="true" />
+          </Button>
+        </form>
+        <p className="text-xs text-muted-foreground">
+          Custom words saved with your entries appear here automatically.
+        </p>
       </div>
 
       {/* Calendar */}
