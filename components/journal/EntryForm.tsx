@@ -10,7 +10,7 @@ import { MoodSlider } from "./MoodSlider";
 import { DailyPrompt } from "./DailyPrompt";
 
 import { AISpark } from "./AISpark";
-import type { Prompt, Entry } from "@/lib/types";
+import { MAX_MOOD_TAGS, type Prompt, type Entry } from "@/lib/types";
 
 interface EntryFormProps {
   todaysPrompt: Prompt;
@@ -69,9 +69,11 @@ export function EntryForm({
   }, [swapCount, swapping, currentPrompt, entryDate]);
 
   const handleTagToggle = (tag: string) => {
-    setMoodTags((prev) =>
-      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
-    );
+    setMoodTags((prev) => {
+      if (prev.includes(tag)) return prev.filter((item) => item !== tag);
+      if (prev.length >= MAX_MOOD_TAGS) return prev;
+      return [...prev, tag];
+    });
   };
 
   const handleSubmit = async () => {

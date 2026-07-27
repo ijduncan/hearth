@@ -1,7 +1,18 @@
 "use client";
 
-import { getMoodLabel, getMoodColor, MOOD_TAGS, type MoodTag } from "@/lib/types";
+import { useState, type FormEvent } from "react";
+import { Plus, X } from "lucide-react";
+import {
+  getMoodLabel,
+  getMoodColor,
+  MAX_MOOD_TAG_LENGTH,
+  MAX_MOOD_TAGS,
+  MOOD_TAGS,
+  type MoodTag,
+} from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface MoodSliderProps {
   value: number;
@@ -16,8 +27,36 @@ export function MoodSlider({
   selectedTags,
   onTagToggle,
 }: MoodSliderProps) {
+  const [customTag, setCustomTag] = useState("");
   const color = getMoodColor(value);
   const label = getMoodLabel(value);
+  const isAtTagLimit = selectedTags.length >= MAX_MOOD_TAGS;
+  const customTags = selectedTags.filter(
+    (selectedTag) =>
+      !MOOD_TAGS.some(
+        (presetTag) => presetTag.toLowerCase() === selectedTag.toLowerCase()
+      )
+  );
+
+  const handleCustomTagSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const tag = customTag.trim().replace(/\s+/g, " ");
+    if (!tag || isAtTagLimit) return;
+
+    const matchingPreset = MOOD_TAGS.find(
+      (presetTag) => presetTag.toLowerCase() === tag.toLowerCase()
+    );
+    const normalizedTag = matchingPreset ?? tag;
+    const isAlreadySelected = selectedTags.some(
+      (selectedTag) => selectedTag.toLowerCase() === normalizedTag.toLowerCase()
+    );
+
+    if (!isAlreadySelected) {
+      onTagToggle(normalizedTag);
+    }
+    setCustomTag("");
+  };
 
   return (
     <div className="space-y-6">
@@ -58,14 +97,58 @@ export function MoodSlider({
           {MOOD_TAGS.map((tag: MoodTag) => (
             <Badge
               key={tag}
+              render={<button type="button" />}
               variant={selectedTags.includes(tag) ? "default" : "outline"}
-              className="cursor-pointer select-none transition-colors"
+              aria-pressed={selectedTags.includes(tag)}
+              aria-disabled={!selectedTags.includes(tag) && isAtTagLimit}
+              className="cursor-pointer select-none transition-colors aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
               onClick={() => onTagToggle(tag)}
             >
               {tag}
             </Badge>
           ))}
+          {customTags.map((tag) => (
+            <Badge
+              key={tag}
+              render={<button type="button" />}
+              aria-label={`Remove ${tag}`}
+              className="cursor-pointer select-none"
+              onClick={() => onTagToggle(tag)}
+            >
+              {tag}
+              <X aria-hidden="true" />
+            </Badge>
+          ))}
         </div>
+
+        <form
+          onSubmit={handleCustomTagSubmit}
+          className="flex items-center gap-2 pt-1"
+        >
+          <Input
+            value={customTag}
+            onChange={(event) => setCustomTag(event.target.value)}
+            maxLength={MAX_MOOD_TAG_LENGTH}
+            placeholder="Add your own word..."
+            aria-label="Custom mood tag"
+            disabled={isAtTagLimit}
+            className="h-9"
+          />
+          <Button
+            type="submit"
+            size="icon"
+            aria-label="Add custom mood tag"
+            disabled={!customTag.trim() || isAtTagLimit}
+            className="h-9 w-9"
+          >
+            <Plus aria-hidden="true" />
+          </Button>
+        </form>
+        <p className="text-xs text-muted-foreground">
+          {isAtTagLimit
+            ? "You can select up to 10 words."
+            : "Choose a word above or add your own."}
+        </p>
       </div>
     </div>
   );

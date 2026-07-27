@@ -28,7 +28,8 @@ export function TodayClient({ profile, recentEntries }: TodayClientProps) {
     <div className="space-y-6">
       <div className="text-center space-y-1">
         <h1 className="text-2xl font-serif font-semibold">
-          Good evening{profile?.display_name ? `, ${profile.display_name}` : ""}
+          {getGreeting(localDate)}
+          {profile?.display_name ? `, ${profile.display_name}` : ""}
         </h1>
         <p className="text-sm text-muted-foreground">
           {formatter.format(localDate)}
@@ -40,4 +41,12 @@ export function TodayClient({ profile, recentEntries }: TodayClientProps) {
       />
     </div>
   );
+}
+
+function getGreeting(date: Date): string {
+  const hour = date.getHours();
+
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
 }

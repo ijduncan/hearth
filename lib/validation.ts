@@ -1,3 +1,5 @@
+import { MAX_MOOD_TAG_LENGTH, MAX_MOOD_TAGS } from "@/lib/types";
+
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export function isValidDateString(value: unknown): value is string {
@@ -86,10 +88,12 @@ export function validateEntryInput(
   }
   const moodTags = (body.mood_tags ?? []) as unknown[];
   if (
-    moodTags.length > 10 ||
-    moodTags.some((tag) => typeof tag !== "string" || tag.length > 40)
+    moodTags.length > MAX_MOOD_TAGS ||
+    moodTags.some(
+      (tag) => typeof tag !== "string" || tag.length > MAX_MOOD_TAG_LENGTH
+    )
   ) {
-    return { error: "mood_tags may contain at most 10 short labels" };
+    return { error: `mood_tags may contain at most ${MAX_MOOD_TAGS} short labels` };
   }
 
   const boundedInteger = (
