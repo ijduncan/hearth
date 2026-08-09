@@ -6,6 +6,7 @@ export interface Profile {
   last_entry_date: string | null;
   reminder_time: string;
   timezone: string;
+  ai_enabled: boolean;
   created_at: string;
 }
 

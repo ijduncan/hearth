@@ -1,7 +1,8 @@
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateAcknowledgment } from "@/lib/claude";
-import { checkRateLimit } from "@/lib/security";
+import { checkRateLimit, readLimitedJson } from "@/lib/security";
 import { validateEntryInput } from "@/lib/validation";
 
 export async function GET() {
@@ -52,25 +53,40 @@ export async function POST(request: Request) {
     );
   }
 
-  let rawBody: unknown;
-  try {
-    rawBody = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  const parsedBody = await readLimitedJson(request, 48 * 1024);
+  if (!parsedBody.ok) {
+    return NextResponse.json(
+      { error: parsedBody.tooLarge ? "Request body too large" : "Invalid JSON body" },
+      { status: parsedBody.tooLarge ? 413 : 400 }
+    );
   }
 
-  const validated = validateEntryInput(rawBody);
+  const validated = validateEntryInput(parsedBody.value);
   if (!validated.data) {
     return NextResponse.json({ error: validated.error }, { status: 400 });
   }
   const body = validated.data;
   const { prompt_category: promptCategory, ...entryData } = body;
+  const acknowledgmentInput = {
+    mood_score: body.mood_score,
+    mood_label: body.mood_label,
+    prompt_question: body.prompt_question,
+    prompt_answer: body.prompt_answer,
+    highlight: body.highlight,
+    challenge: body.challenge,
+    gratitude: body.gratitude,
+    free_write: body.free_write,
+  };
+  const aiInputHash = createHash("sha256")
+    .update(JSON.stringify({ version: 1, ...acknowledgmentInput }))
+    .digest("hex");
 
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("display_name")
+    .select("display_name, ai_enabled")
     .eq("id", user.id)
     .single();
+  const aiEnabled = !profileError && profile?.ai_enabled === true;
 
   const { data: entry, error } = await supabase
     .from("entries")
@@ -78,6 +94,7 @@ export async function POST(request: Request) {
       {
         user_id: user.id,
         ...entryData,
+        ai_content_hash: aiInputHash,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "user_id,entry_date" }
@@ -93,36 +110,99 @@ export async function POST(request: Request) {
     );
   }
 
-  let aiAcknowledgment = "";
-  try {
-    aiAcknowledgment = await generateAcknowledgment(
-      {
-        mood_score: body.mood_score,
-        mood_label: body.mood_label,
-        prompt_question: body.prompt_question,
-        prompt_answer: body.prompt_answer,
-        highlight: body.highlight,
-        challenge: body.challenge,
-        gratitude: body.gratitude,
-        free_write: body.free_write,
-      },
-      profile?.display_name || "friend"
-    );
+  const contentChanged = entry.ai_input_hash !== aiInputHash;
+  let aiAcknowledgment =
+    !contentChanged && typeof entry.ai_acknowledgment === "string"
+      ? entry.ai_acknowledgment
+      : "";
+  let aiRateLimited = false;
+  let responseEntry = contentChanged
+    ? {
+        ...entry,
+        ai_acknowledgment: null,
+        ai_generated_at: null,
+        ai_input_hash: null,
+      }
+    : entry;
 
-    const { error: acknowledgmentError } = await supabase
+  if (!aiEnabled && contentChanged) {
+    const { error: clearError } = await supabase
       .from("entries")
       .update({
-        ai_acknowledgment: aiAcknowledgment,
-        ai_generated_at: new Date().toISOString(),
+        ai_acknowledgment: null,
+        ai_generated_at: null,
+        ai_input_hash: null,
       })
       .eq("id", entry.id)
-      .eq("user_id", user.id);
+      .eq("user_id", user.id)
+      .eq("updated_at", entry.updated_at);
+    if (clearError) console.error("Failed to clear an outdated AI acknowledgment");
+  }
 
-    if (acknowledgmentError) {
-      console.error("Failed to save AI acknowledgment:", acknowledgmentError.message);
+  if (aiEnabled && !aiAcknowledgment) {
+    const { data: claimToken, error: claimError } = await supabase.rpc(
+      "claim_entry_ai_generation",
+      {
+        p_entry_id: entry.id,
+        p_input_hash: aiInputHash,
+      }
+    );
+
+    if (claimError) {
+      console.error("Failed to claim AI acknowledgment generation");
+    } else if (typeof claimToken === "string") {
+      const aiBudget = await checkRateLimit(
+        supabase,
+        "entry-ai-daily",
+        10,
+        24 * 60 * 60
+      );
+
+      if (!aiBudget.allowed) {
+        aiRateLimited = true;
+        await supabase.rpc("release_entry_ai_generation", {
+          p_entry_id: entry.id,
+          p_claim_token: claimToken,
+        });
+      } else {
+        try {
+          aiAcknowledgment = await generateAcknowledgment(
+            acknowledgmentInput,
+            profile?.display_name || "friend"
+          );
+          if (!aiAcknowledgment.trim()) {
+            throw new Error("AI acknowledgment was empty");
+          }
+
+          const generatedAt = new Date().toISOString();
+          const { data: completed, error: acknowledgmentError } =
+            await supabase.rpc("complete_entry_ai_generation", {
+              p_entry_id: entry.id,
+              p_input_hash: aiInputHash,
+              p_claim_token: claimToken,
+              p_acknowledgment: aiAcknowledgment,
+            });
+
+          if (acknowledgmentError || completed !== true) {
+            console.error("Failed to save the current AI acknowledgment");
+            aiAcknowledgment = "";
+          } else {
+            responseEntry = {
+              ...responseEntry,
+              ai_acknowledgment: aiAcknowledgment,
+              ai_generated_at: generatedAt,
+              ai_input_hash: aiInputHash,
+            };
+          }
+        } catch {
+          // The journal entry remains saved if the provider is unavailable.
+          await supabase.rpc("release_entry_ai_generation", {
+            p_entry_id: entry.id,
+            p_claim_token: claimToken,
+          });
+        }
+      }
     }
-  } catch {
-    // The journal entry remains saved if the provider is temporarily unavailable.
   }
 
   const today = body.entry_date;
@@ -160,17 +240,18 @@ export async function POST(request: Request) {
   }
   if (newStreak === 0) newStreak = 1;
 
-  const { error: profileError } = await supabase
+  const { error: streakProfileError } = await supabase
     .from("profiles")
     .update({ streak_count: newStreak, last_entry_date: today })
     .eq("id", user.id);
-  if (profileError) {
-    console.error("Failed to update streak:", profileError.message);
+  if (streakProfileError) {
+    console.error("Failed to update streak:", streakProfileError.message);
   }
 
   return NextResponse.json({
-    entry,
+    entry: responseEntry,
     ai_acknowledgment: aiAcknowledgment,
+    ai_rate_limited: aiRateLimited,
     streak_count: newStreak,
   });
 }

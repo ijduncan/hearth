@@ -105,7 +105,8 @@ export async function POST(request: Request) {
         last_success_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
-      .eq("id", subscription.id);
+      .eq("id", subscription.id)
+      .eq("user_id", user.id);
     if (updateError) console.error("Failed to record successful test push");
 
     return NextResponse.json({ accepted: true });
@@ -114,7 +115,8 @@ export async function POST(request: Request) {
       const { error: deleteError } = await admin
         .from("push_subscriptions")
         .delete()
-        .eq("id", subscription.id);
+        .eq("id", subscription.id)
+        .eq("user_id", user.id);
       if (deleteError) console.error("Failed to remove invalid push subscription");
 
       return NextResponse.json(
@@ -129,7 +131,8 @@ export async function POST(request: Request) {
         failure_count: Math.min(subscription.failure_count + 1, 1000),
         updated_at: new Date().toISOString(),
       })
-      .eq("id", subscription.id);
+      .eq("id", subscription.id)
+      .eq("user_id", user.id);
     if (updateError) console.error("Failed to record test push failure");
 
     const statusCode = getPushStatusCode(pushError);

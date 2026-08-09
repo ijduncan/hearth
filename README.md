@@ -40,7 +40,7 @@ Built with Next.js 16, Supabase, and Claude.
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 24+
 - A [Supabase](https://supabase.com) project (free tier works)
 - An [Anthropic API key](https://console.anthropic.com)
 
@@ -72,11 +72,13 @@ Built with Next.js 16, Supabase, and Claude.
    npm run notifications:generate-keys
    ```
 
-4. Apply all database migrations and sync the private allowlist:
+4. Apply all database migrations, sync the private allowlist, and provision
+   each approved Auth identity:
    ```bash
    npx supabase link --project-ref YOUR_PROJECT_REF
    npx supabase db push
    npm run security:sync-allowlist
+   npm run security:provision-user -- person@example.com
    ```
 
 5. Start the dev server:
@@ -85,6 +87,14 @@ Built with Next.js 16, Supabase, and Claude.
    ```
 
 6. Visit `http://localhost:3000` and log in with a magic link.
+
+### AI Privacy
+
+AI processing is opt-in per account and starts disabled. A user can enable it
+under **Settings > AI reflections** after reading the disclosure. When enabled,
+Hearth sends the journal text needed for acknowledgments and summaries to the
+configured Anthropic API. When disabled, journal saves remain in Hearth and
+Supabase and no scheduled AI summaries are generated for that account.
 
 ### Browser Reminders
 
@@ -147,9 +157,11 @@ Set `ALLOWED_EMAILS` in your environment to restrict access:
 ALLOWED_EMAILS=alice@example.com,bob@example.com
 ```
 
-After changing the list, run `npm run security:sync-allowlist`. Access is
-enforced both by the application and by Supabase row-level security. Unknown
-addresses are rejected by the database even if someone bypasses the web app.
+After changing the list, run `npm run security:sync-allowlist`, then run
+`npm run security:provision-user -- person@example.com` for each new address.
+Hearth does not create accounts from the public login form. Access is enforced
+both by the application and by Supabase row-level security; the login response
+also stays generic so it does not reveal which addresses have accounts.
 
 ## Deploying to Vercel
 

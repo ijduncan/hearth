@@ -18,7 +18,10 @@ function redirectWithCookies(url: URL, source: NextResponse): NextResponse {
   return noStore(response);
 }
 
-export async function updateSession(request: NextRequest) {
+export async function updateSession(
+  request: NextRequest,
+  forwardedHeaders?: Headers
+) {
   const pathname = request.nextUrl.pathname;
   const isApi = pathname.startsWith("/api/");
   const isCron = pathname.startsWith("/api/cron/");
@@ -35,7 +38,22 @@ export async function updateSession(request: NextRequest) {
     );
   }
 
-  let supabaseResponse = NextResponse.next({ request });
+  const createNextResponse = () => {
+    const headers = new Headers(request.headers);
+    if (forwardedHeaders) {
+      const nonce = forwardedHeaders.get("x-nonce");
+      const contentSecurityPolicy = forwardedHeaders.get(
+        "Content-Security-Policy"
+      );
+      if (nonce) headers.set("x-nonce", nonce);
+      if (contentSecurityPolicy) {
+        headers.set("Content-Security-Policy", contentSecurityPolicy);
+      }
+    }
+    return NextResponse.next({ request: { headers } });
+  };
+
+  let supabaseResponse = createNextResponse();
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -49,7 +67,7 @@ export async function updateSession(request: NextRequest) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );
-          supabaseResponse = NextResponse.next({ request });
+          supabaseResponse = createNextResponse();
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           );

@@ -1,8 +1,56 @@
-import { timingSafeEqual } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
+function getSupabaseConnectSources(): string[] {
+  const configuredUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!configuredUrl) {
+    return ["https://*.supabase.co", "wss://*.supabase.co"];
+  }
+
+  try {
+    const url = new URL(configuredUrl);
+    if (url.protocol !== "https:" && url.protocol !== "http:") {
+      throw new Error("Unsupported Supabase URL protocol");
+    }
+    const socketProtocol = url.protocol === "https:" ? "wss:" : "ws:";
+    return [url.origin, `${socketProtocol}//${url.host}`];
+  } catch {
+    throw new Error("NEXT_PUBLIC_SUPABASE_URL must be a valid HTTP(S) URL");
+  }
+}
+
+export function createCspNonce(): string {
+  return randomBytes(16).toString("base64");
+}
+
+export function createContentSecurityPolicy(nonce: string): string {
+  const connectSources = ["'self'", ...getSupabaseConnectSources()].join(" ");
+  const scriptSources = [
+    "'self'",
+    `'nonce-${nonce}'`,
+    "'strict-dynamic'",
+    ...(process.env.NODE_ENV === "development" ? ["'unsafe-eval'"] : []),
+  ].join(" ");
+
+  return [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    `script-src ${scriptSources}`,
+    "script-src-attr 'none'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    "media-src 'self' blob:",
+    "worker-src 'self' blob:",
+    `connect-src ${connectSources}`,
+    "upgrade-insecure-requests",
+  ].join("; ");
+}
 
 export function safeRedirectPath(value: string | null): string {
   if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) {
