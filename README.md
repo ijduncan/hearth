@@ -20,6 +20,7 @@ Built with Next.js 16, Supabase, and Claude.
 - Weekly AI-written pattern summaries
 - Mood trend charts + streak tracking
 - Voice-to-text input (Web Speech API)
+- Opt-in evening browser reminders with one-tap journal access
 - Calendar history view with full-text search
 - Mood tag analytics (which tags correlate with high/low mood)
 - Private by design — no analytics, no ads, no tracking
@@ -63,7 +64,13 @@ Built with Next.js 16, Supabase, and Claude.
    - `SUPABASE_SERVICE_ROLE_KEY` — from Supabase dashboard (Settings > API)
    - `ANTHROPIC_API_KEY` — from Anthropic console
    - `ALLOWED_EMAILS` — comma-separated list of allowed email addresses
-   - `CRON_SECRET` — any random string for cron job auth
+   - `VAPID_SUBJECT`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` — Web Push credentials
+   - `CRON_SECRET` — a random string of at least 32 characters for cron job auth
+
+   Generate the VAPID keys once and keep the private key secret:
+   ```bash
+   npm run notifications:generate-keys
+   ```
 
 4. Apply all database migrations and sync the private allowlist:
    ```bash
@@ -78,6 +85,60 @@ Built with Next.js 16, Supabase, and Claude.
    ```
 
 6. Visit `http://localhost:3000` and log in with a magic link.
+
+### Browser Reminders
+
+The Settings page can enable notifications independently on each device and
+send a real end-to-end test notification. Desktop browsers can test from
+localhost; phones need the deployed HTTPS app.
+
+On iPhone or iPad, tap **Share > Add to Home Screen**, launch Hearth from its
+new icon, log in, then open **Settings > Evening reminder**. Tap **Turn on for
+this device**, allow notifications, and use **Send test notification**.
+
+The test button works without a scheduler. For automatic evening delivery,
+apply migration `010_web_push_reminders.sql`, enable Supabase Cron, `pg_net`,
+and Vault, then store the deployed Hearth URL and the same `CRON_SECRET` used
+by the app:
+
+```sql
+select vault.create_secret(
+  'https://your-hearth-domain.example',
+  'hearth_app_url'
+);
+
+select vault.create_secret(
+  'YOUR_RANDOM_CRON_SECRET_OF_AT_LEAST_32_CHARACTERS',
+  'hearth_cron_secret'
+);
+
+select cron.schedule(
+  'hearth-evening-reminders',
+  '* * * * *',
+  $$
+  select net.http_get(
+    url := (
+      select rtrim(decrypted_secret, '/')
+      from vault.decrypted_secrets
+      where name = 'hearth_app_url'
+    ) || '/api/cron/evening-reminders',
+    headers := jsonb_build_object(
+      'Authorization', 'Bearer ' || (
+        select decrypted_secret
+        from vault.decrypted_secrets
+        where name = 'hearth_cron_secret'
+      )
+    ),
+    timeout_milliseconds := 10000
+  ) as request_id;
+  $$
+);
+```
+
+The job runs every minute, respects each profile's timezone, skips users who
+already journaled that day, retries transient delivery failures, and prevents
+duplicate scheduled attempts per active subscription and local date. Keep
+notification text generic because it may appear on a lock screen.
 
 ### Restricting Access
 

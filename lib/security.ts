@@ -57,6 +57,53 @@ export function exceedsBodyLimit(request: Request, maxBytes = 64 * 1024): boolea
   return !Number.isFinite(length) || length < 0 || length > maxBytes;
 }
 
+export async function readLimitedJson(
+  request: Request,
+  maxBytes = 8 * 1024
+): Promise<
+  | { ok: true; value: unknown }
+  | { ok: false; tooLarge: boolean }
+> {
+  if (exceedsBodyLimit(request, maxBytes)) {
+    return { ok: false, tooLarge: true };
+  }
+  if (!request.body) {
+    return { ok: false, tooLarge: false };
+  }
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      totalBytes += value.byteLength;
+      if (totalBytes > maxBytes) {
+        await reader.cancel().catch(() => undefined);
+        return { ok: false, tooLarge: true };
+      }
+      chunks.push(value);
+    }
+
+    const body = new Uint8Array(totalBytes);
+    let offset = 0;
+    for (const chunk of chunks) {
+      body.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+
+    const text = new TextDecoder("utf-8", { fatal: true }).decode(body);
+    return { ok: true, value: JSON.parse(text) as unknown };
+  } catch {
+    return { ok: false, tooLarge: false };
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 export function verifyBearerSecret(
   authorizationHeader: string | null,
   secret: string | undefined

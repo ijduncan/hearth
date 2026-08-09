@@ -16,7 +16,11 @@ const lora = Lora({
 export const metadata: Metadata = {
   title: "Hearth",
   description: "A private AI journaling app for your household",
-  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    title: "Hearth",
+    statusBarStyle: "default",
+  },
 };
 
 export const viewport: Viewport = {

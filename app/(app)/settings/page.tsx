@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import type { Profile } from "@/lib/types";
+import { EveningReminderCard } from "@/components/settings/EveningReminderCard";
 
 const EMOJI_OPTIONS = ["🌿", "🔥", "🌙", "☀️", "🌊", "🪵", "🌸", "⭐", "🍂", "🌻", "🌕"];
 
@@ -15,9 +16,12 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<{
+    kind: "success" | "error";
+    text: string;
+  } | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [avatarEmoji, setAvatarEmoji] = useState("🌿");
-  const [reminderTime, setReminderTime] = useState("20:00");
   const [timezone, setTimezone] = useState(() => "America/Los_Angeles");
 
   useEffect(() => {
@@ -33,11 +37,14 @@ export default function SettingsPage() {
         .single();
 
       if (data) {
-        setProfile(data);
+        const loadedProfile = {
+          ...data,
+          timezone: data.timezone || "America/Los_Angeles",
+        };
+        setProfile(loadedProfile);
         setDisplayName(data.display_name);
         setAvatarEmoji(data.avatar_emoji);
-        setReminderTime(data.reminder_time || "20:00");
-        setTimezone(data.timezone || "America/Los_Angeles");
+        setTimezone(loadedProfile.timezone);
       }
       setLoading(false);
     };
@@ -47,16 +54,30 @@ export default function SettingsPage() {
   const handleSave = async () => {
     if (!profile) return;
     setSaving(true);
+    setSaveMessage(null);
     const supabase = createClient();
-    await supabase
+    const { error } = await supabase
       .from("profiles")
       .update({
         display_name: displayName,
         avatar_emoji: avatarEmoji,
-        reminder_time: reminderTime,
         timezone: timezone,
       })
       .eq("id", profile.id);
+
+    if (error) {
+      setSaveMessage({ kind: "error", text: "Could not save profile settings." });
+      setSaving(false);
+      return;
+    }
+
+    setProfile({
+      ...profile,
+      display_name: displayName,
+      avatar_emoji: avatarEmoji,
+      timezone,
+    });
+    setSaveMessage({ kind: "success", text: "Profile settings saved." });
     setSaving(false);
   };
 
@@ -106,19 +127,6 @@ export default function SettingsPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="reminder">Evening reminder time</Label>
-            <Input
-              id="reminder"
-              type="time"
-              value={reminderTime}
-              onChange={(e) => setReminderTime(e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">
-              When you&apos;d like to be reminded to journal (notification support coming soon)
-            </p>
-          </div>
-
-          <div className="space-y-2">
             <Label htmlFor="timezone">Timezone</Label>
             <select
               id="timezone"
@@ -144,8 +152,28 @@ export default function SettingsPage() {
               "Save changes"
             )}
           </Button>
+          {saveMessage ? (
+            <p
+              className={
+                saveMessage.kind === "error"
+                  ? "text-sm text-destructive"
+                  : "text-sm text-primary"
+              }
+              role={saveMessage.kind === "error" ? "alert" : "status"}
+            >
+              {saveMessage.text}
+            </p>
+          ) : null}
         </CardContent>
       </Card>
+
+      {profile ? (
+        <EveningReminderCard
+          profileId={profile.id}
+          initialReminderTime={profile.reminder_time}
+          timezone={profile.timezone}
+        />
+      ) : null}
     </div>
   );
 }
