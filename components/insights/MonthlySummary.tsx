@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, BookOpen } from "lucide-react";
+import { MarkdownText } from "@/components/ai/MarkdownText";
 import type { MonthlySummary as MonthlySummaryType } from "@/lib/types";
 
 interface MonthlySummaryProps {
@@ -44,9 +45,9 @@ export function MonthlySummary({ summary: initialSummary }: MonthlySummaryProps)
       <CardContent>
         {summary ? (
           <div className="space-y-3">
-            <p className="text-sm leading-relaxed font-serif whitespace-pre-line">
+            <MarkdownText className="font-serif">
               {summary.summary_text}
-            </p>
+            </MarkdownText>
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               {summary.avg_mood && (
                 <span>Avg mood: {summary.avg_mood}/10</span>

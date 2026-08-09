@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
+import { MarkdownText } from "@/components/ai/MarkdownText";
 import { Card, CardContent } from "@/components/ui/card";
 
 interface AISparkProps {
@@ -24,9 +25,9 @@ export function AISpark({ acknowledgment, streakCount }: AISparkProps) {
               You were heard
             </span>
           </div>
-          <p className="text-sm leading-relaxed font-serif whitespace-pre-line">
+          <MarkdownText className="font-serif">
             {acknowledgment}
-          </p>
+          </MarkdownText>
           <div className="flex items-center justify-between pt-2 border-t border-primary/10">
             <p className="text-xs text-muted-foreground">
               Entry saved

@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { MarkdownText } from "@/components/ai/MarkdownText";
 import { Stethoscope } from "lucide-react";
 
 interface TherapistSummaryProps {
@@ -26,9 +27,7 @@ export function TherapistSummary({ summary }: TherapistSummaryProps) {
           </p>
         </CardHeader>
         <CardContent>
-          <p className="text-sm leading-relaxed whitespace-pre-line">
-            {summary}
-          </p>
+          <MarkdownText>{summary}</MarkdownText>
         </CardContent>
       </Card>
     </motion.div>

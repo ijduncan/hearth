@@ -33,6 +33,7 @@ import {
 } from "@/lib/types";
 import { getTodaysPrompt } from "@/lib/prompts";
 import { EntryForm } from "@/components/journal/EntryForm";
+import { MarkdownText } from "@/components/ai/MarkdownText";
 import {
   Dialog,
   DialogContent,
@@ -533,9 +534,9 @@ export function HistoryView({ entries, onEntrySaved }: HistoryViewProps) {
                 {selectedEntry.ai_acknowledgment && (
                   <div className="rounded-lg bg-primary/5 border border-primary/10 p-4">
                     <p className="text-xs text-primary/60 mb-2">AI reflection</p>
-                    <p className="text-sm font-serif leading-relaxed">
+                    <MarkdownText className="font-serif">
                       {selectedEntry.ai_acknowledgment}
-                    </p>
+                    </MarkdownText>
                   </div>
                 )}
 
