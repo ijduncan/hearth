@@ -56,6 +56,13 @@ export interface EntryDraft {
   updated_at: string;
 }
 
+export interface SavedMoodTag {
+  id: string;
+  user_id: string;
+  label: string;
+  created_at: string;
+}
+
 export interface WeeklySummary {
   id: string;
   user_id: string;
@@ -109,6 +116,7 @@ export const MOOD_LABELS: Record<number, string> = {
 
 export const MAX_MOOD_TAGS = 10;
 export const MAX_MOOD_TAG_LENGTH = 40;
+export const MAX_SAVED_MOOD_TAGS = 100;
 
 export const MOOD_TAGS = [
   "work",

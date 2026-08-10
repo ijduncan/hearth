@@ -6,6 +6,7 @@ import {
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const CONTROL_CHARACTER = /[\u0000-\u001f\u007f-\u009f]/;
 
 export function isValidDateString(value: unknown): value is string {
   if (
@@ -21,6 +22,22 @@ export function isValidDateString(value: unknown): value is string {
 
 export function isValidUuid(value: unknown): value is string {
   return typeof value === "string" && UUID.test(value);
+}
+
+export function normalizeSavedMoodTagLabel(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+
+  const normalized = value.trim().replace(/\s+/gu, " ");
+  const characterCount = Array.from(normalized).length;
+  if (
+    characterCount < 1 ||
+    characterCount > MAX_MOOD_TAG_LENGTH ||
+    CONTROL_CHARACTER.test(normalized)
+  ) {
+    return null;
+  }
+
+  return normalized;
 }
 
 export function parseJsonObject(value: unknown): Record<string, unknown> | null {

@@ -706,17 +706,52 @@ export function EntryForm({
 
   const handleTagToggle = useCallback(
     (tag: string) => {
-      const isSelected = moodTags.includes(tag);
-      if (!isSelected && moodTags.length >= MAX_MOOD_TAGS) return;
+      const currentTags = formStateRef.current.mood_tags;
+      const tagKey = tag.toLowerCase();
+      const selectedIndex = currentTags.findIndex(
+        (item) => item.toLowerCase() === tagKey
+      );
+      const isSelected = selectedIndex !== -1;
+      if (!isSelected && currentTags.length >= MAX_MOOD_TAGS) return;
 
       const nextTags = isSelected
-        ? moodTags.filter((item) => item !== tag)
-        : [...moodTags, tag];
+        ? currentTags.filter((_, index) => index !== selectedIndex)
+        : [...currentTags, tag];
       updateDraftFormState({ mood_tags: nextTags });
       setMoodTags(nextTags);
       markMeaningfulInteraction();
     },
-    [markMeaningfulInteraction, moodTags, updateDraftFormState]
+    [markMeaningfulInteraction, updateDraftFormState]
+  );
+
+  const handleTagSelect = useCallback(
+    (tag: string) => {
+      const currentTags = formStateRef.current.mood_tags;
+      const tagKey = tag.toLowerCase();
+      const selectedIndex = currentTags.findIndex(
+        (item) => item.toLowerCase() === tagKey
+      );
+
+      if (selectedIndex !== -1) {
+        if (currentTags[selectedIndex] === tag) return true;
+
+        const nextTags = [...currentTags];
+        nextTags[selectedIndex] = tag;
+        updateDraftFormState({ mood_tags: nextTags });
+        setMoodTags(nextTags);
+        markMeaningfulInteraction();
+        return true;
+      }
+
+      if (currentTags.length >= MAX_MOOD_TAGS) return false;
+
+      const nextTags = [...currentTags, tag];
+      updateDraftFormState({ mood_tags: nextTags });
+      setMoodTags(nextTags);
+      markMeaningfulInteraction();
+      return true;
+    },
+    [markMeaningfulInteraction, updateDraftFormState]
   );
 
   const handleSubmit = async () => {
@@ -954,6 +989,7 @@ export function EntryForm({
                   onChange={handleMoodChange}
                   selectedTags={moodTags}
                   onTagToggle={handleTagToggle}
+                  onTagSelect={handleTagSelect}
                 />
                 <Button
                   onClick={() => moveToStep("questions")}
