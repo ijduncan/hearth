@@ -5,28 +5,18 @@ import { safeRedirectPath } from "@/lib/security";
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const token_hash = searchParams.get("token_hash");
-  const type = searchParams.get("type");
   const next = safeRedirectPath(searchParams.get("next"));
 
   const supabase = await createClient();
 
-  // Handle PKCE flow (code exchange)
-  if (code) {
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (error) {
-      console.error("Code exchange error:", error.message);
-      return NextResponse.redirect(`${origin}/login?error=auth`);
-    }
+  // Require the browser-bound PKCE verifier. Accepting a bare token hash here
+  // would let a forwarded link sign a victim into somebody else's account.
+  if (!code) {
+    return NextResponse.redirect(`${origin}/login?error=auth`);
   }
-  // Handle magic link token hash flow
-  else if (token_hash && (type === "email" || type === "magiclink")) {
-    const { error } = await supabase.auth.verifyOtp({ token_hash, type });
-    if (error) {
-      console.error("OTP verify error:", error.message);
-      return NextResponse.redirect(`${origin}/login?error=auth`);
-    }
-  } else {
+  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  if (error) {
+    console.error("Code exchange error:", error.message);
     return NextResponse.redirect(`${origin}/login?error=auth`);
   }
 

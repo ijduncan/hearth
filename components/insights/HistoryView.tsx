@@ -368,6 +368,7 @@ export function HistoryView({ entries, onEntrySaved }: HistoryViewProps) {
               </SheetHeader>
               <div className="mt-6">
                 <EntryForm
+                  key={catchUpDate}
                   todaysPrompt={getTodaysPrompt(parseISO(catchUpDate))}
                   existingEntry={null}
                   entryDate={catchUpDate}

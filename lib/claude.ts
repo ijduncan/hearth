@@ -11,6 +11,34 @@ const REFLECTION_MODEL =
 const THERAPIST_MODEL =
   process.env.ANTHROPIC_THERAPIST_MODEL || "claude-opus-4-8";
 
+function truncateText(value: string, maxCharacters: number): string {
+  if (value.length <= maxCharacters) return value;
+  return `${value.slice(0, Math.max(0, maxCharacters - 1))}…`;
+}
+
+function normalizeDisplayName(value: string): string {
+  return truncateText(value.trim() || "friend", 100);
+}
+
+function joinSectionsWithinBudget(
+  sections: string[],
+  maxCharacters: number
+): string {
+  if (sections.length === 0) return "";
+
+  const separator = "\n---\n";
+  const separatorCharacters = separator.length * (sections.length - 1);
+  const perSection = Math.max(
+    1,
+    Math.floor((maxCharacters - separatorCharacters) / sections.length)
+  );
+
+  return sections
+    .map((section) => truncateText(section, perSection))
+    .join(separator)
+    .slice(0, maxCharacters);
+}
+
 async function createMessage(
   params: Anthropic.MessageCreateParamsNonStreaming
 ): Promise<Anthropic.Message> {
@@ -126,7 +154,7 @@ export async function generateAcknowledgment(
     messages: [
       {
         role: "user",
-        content: `The person's name is ${displayName}. Here is their journal entry for today:\n\n${parts.join("\n\n")}`,
+        content: `The person's name is ${normalizeDisplayName(displayName)}. Here is their journal entry for today:\n\n${truncateText(parts.join("\n\n"), 24_000)}`,
       },
     ],
   });
@@ -149,8 +177,8 @@ export async function generateWeeklySummary(
   }>,
   displayName: string
 ): Promise<string> {
-  const entrySummaries = entries
-    .map((e) => {
+  const entrySummaries = joinSectionsWithinBudget(
+    entries.map((e) => {
       const parts: string[] = [`Date: ${e.entry_date}`];
       if (e.mood_score) parts.push(`Mood: ${e.mood_score}/10 (${e.mood_label})`);
       if (e.highlight) parts.push(`Highlight: ${e.highlight}`);
@@ -159,8 +187,9 @@ export async function generateWeeklySummary(
       if (e.prompt_answer) parts.push(`Prompt answer: ${e.prompt_answer}`);
       if (e.free_write) parts.push(`Free write: ${e.free_write}`);
       return parts.join("\n");
-    })
-    .join("\n---\n");
+    }),
+    100_000
+  );
 
   const message = await createMessage({
     model: REFLECTION_MODEL,
@@ -169,7 +198,7 @@ export async function generateWeeklySummary(
     messages: [
       {
         role: "user",
-        content: `The person's name is ${displayName}. Here are their journal entries from the past week:\n\n${entrySummaries}`,
+        content: `The person's name is ${normalizeDisplayName(displayName)}. Here are their journal entries from the past week:\n\n${entrySummaries}`,
       },
     ],
   });
@@ -192,8 +221,8 @@ export async function generateMonthlySummary(
   }>,
   displayName: string
 ): Promise<string> {
-  const entrySummaries = entries
-    .map((e) => {
+  const entrySummaries = joinSectionsWithinBudget(
+    entries.map((e) => {
       const parts: string[] = [`Date: ${e.entry_date}`];
       if (e.mood_score) parts.push(`Mood: ${e.mood_score}/10 (${e.mood_label})`);
       if (e.highlight) parts.push(`Highlight: ${e.highlight}`);
@@ -202,8 +231,9 @@ export async function generateMonthlySummary(
       if (e.prompt_answer) parts.push(`Prompt answer: ${e.prompt_answer}`);
       if (e.free_write) parts.push(`Free write: ${e.free_write}`);
       return parts.join("\n");
-    })
-    .join("\n---\n");
+    }),
+    140_000
+  );
 
   const message = await createMessage({
     model: REFLECTION_MODEL,
@@ -212,7 +242,7 @@ export async function generateMonthlySummary(
     messages: [
       {
         role: "user",
-        content: `The person's name is ${displayName}. Here are their journal entries from the past month:\n\n${entrySummaries}`,
+        content: `The person's name is ${normalizeDisplayName(displayName)}. Here are their journal entries from the past month:\n\n${entrySummaries}`,
       },
     ],
   });
@@ -237,8 +267,8 @@ export async function generateTherapistSummary(
   displayName: string,
   periodLabel: string
 ): Promise<string> {
-  const entrySummaries = entries
-    .map((e) => {
+  const entrySummaries = joinSectionsWithinBudget(
+    entries.map((e) => {
       const parts: string[] = [`Date: ${e.entry_date}`];
       if (e.mood_score) parts.push(`Mood: ${e.mood_score}/10 (${e.mood_label})`);
       if (e.mood_tags?.length) parts.push(`Tags: ${e.mood_tags.join(", ")}`);
@@ -248,8 +278,9 @@ export async function generateTherapistSummary(
       if (e.prompt_answer) parts.push(`Prompt answer: ${e.prompt_answer}`);
       if (e.free_write) parts.push(`Free write: ${e.free_write}`);
       return parts.join("\n");
-    })
-    .join("\n---\n");
+    }),
+    160_000
+  );
 
   const message = await createMessage({
     model: THERAPIST_MODEL,
@@ -258,7 +289,7 @@ export async function generateTherapistSummary(
     messages: [
       {
         role: "user",
-        content: `The person's name is ${displayName}. The report covers ${periodLabel}.\n\nHere are their journal entries:\n\n${entrySummaries}`,
+        content: `The person's name is ${normalizeDisplayName(displayName)}. The report covers ${periodLabel}.\n\nHere are their journal entries:\n\n${entrySummaries}`,
       },
     ],
   });

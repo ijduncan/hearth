@@ -18,10 +18,17 @@ function redirectWithCookies(url: URL, source: NextResponse): NextResponse {
   return noStore(response);
 }
 
-export async function updateSession(request: NextRequest) {
+export async function updateSession(
+  request: NextRequest,
+  forwardedHeaders?: Headers
+) {
   const pathname = request.nextUrl.pathname;
   const isApi = pathname.startsWith("/api/");
   const isCron = pathname.startsWith("/api/cron/");
+  const bodyLimit =
+    pathname === "/api/entries" || pathname === "/api/entry-drafts"
+      ? 160 * 1024
+      : 64 * 1024;
 
   if (isApi && !isTrustedMutation(request)) {
     return noStore(
@@ -29,13 +36,28 @@ export async function updateSession(request: NextRequest) {
     );
   }
 
-  if (isApi && exceedsBodyLimit(request)) {
+  if (isApi && exceedsBodyLimit(request, bodyLimit)) {
     return noStore(
       NextResponse.json({ error: "Request body too large" }, { status: 413 })
     );
   }
 
-  let supabaseResponse = NextResponse.next({ request });
+  const createNextResponse = () => {
+    const headers = new Headers(request.headers);
+    if (forwardedHeaders) {
+      const nonce = forwardedHeaders.get("x-nonce");
+      const contentSecurityPolicy = forwardedHeaders.get(
+        "Content-Security-Policy"
+      );
+      if (nonce) headers.set("x-nonce", nonce);
+      if (contentSecurityPolicy) {
+        headers.set("Content-Security-Policy", contentSecurityPolicy);
+      }
+    }
+    return NextResponse.next({ request: { headers } });
+  };
+
+  let supabaseResponse = createNextResponse();
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -49,7 +71,7 @@ export async function updateSession(request: NextRequest) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );
-          supabaseResponse = NextResponse.next({ request });
+          supabaseResponse = createNextResponse();
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           );

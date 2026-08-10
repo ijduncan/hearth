@@ -207,6 +207,19 @@ export function ExportView({ entries, displayName }: ExportViewProps) {
   );
 }
 
+function escapeHtml(value: unknown): string {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function safePngDataUrl(value: string | null): string | null {
+  return value && /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(value) ? value : null;
+}
+
 function buildHtmlReport(
   entries: Entry[],
   dateRange: { from: Date; to: Date },
@@ -224,7 +237,7 @@ function buildHtmlReport(
 
   const parts: string[] = [];
   parts.push(`<h2 style="margin:0 0 4px">Hearth Journal Report</h2>`);
-  parts.push(`<p style="color:#888;margin:0 0 16px">${displayName} &middot; ${format(dateRange.from, "MMM d")} – ${format(dateRange.to, "MMM d, yyyy")}</p>`);
+  parts.push(`<p style="color:#888;margin:0 0 16px">${escapeHtml(displayName)} &middot; ${format(dateRange.from, "MMM d")} – ${format(dateRange.to, "MMM d, yyyy")}</p>`);
 
   // Mood overview
   parts.push(`<h3>Mood Overview</h3>`);
@@ -243,17 +256,21 @@ function buildHtmlReport(
   }
 
   // Chart images
-  if (images.moodChartImg) {
+  const moodChartImg = safePngDataUrl(images.moodChartImg);
+  const periodHeatmapImg = safePngDataUrl(images.periodHeatmapImg);
+  const yearHeatmapImg = safePngDataUrl(images.yearHeatmapImg);
+
+  if (moodChartImg) {
     parts.push(`<h3>Mood Trend</h3>`);
-    parts.push(`<img src="${images.moodChartImg}" style="max-width:100%;border-radius:8px" />`);
+    parts.push(`<img src="${moodChartImg}" style="max-width:100%;border-radius:8px" />`);
   }
-  if (images.periodHeatmapImg) {
+  if (periodHeatmapImg) {
     parts.push(`<h3>Period Heatmap</h3>`);
-    parts.push(`<img src="${images.periodHeatmapImg}" style="max-width:100%;border-radius:8px" />`);
+    parts.push(`<img src="${periodHeatmapImg}" style="max-width:100%;border-radius:8px" />`);
   }
-  if (images.yearHeatmapImg) {
+  if (yearHeatmapImg) {
     parts.push(`<h3>Year Heatmap</h3>`);
-    parts.push(`<img src="${images.yearHeatmapImg}" style="max-width:100%;border-radius:8px" />`);
+    parts.push(`<img src="${yearHeatmapImg}" style="max-width:100%;border-radius:8px" />`);
   }
 
   // Tag breakdown
@@ -274,7 +291,7 @@ function buildHtmlReport(
     parts.push(`<table style="border-collapse:collapse;font-size:14px">`);
     parts.push(`<tr><th style="text-align:left;padding:2px 12px 2px 0">Tag</th><th style="text-align:left;padding:2px 12px 2px 0">Count</th><th style="text-align:left">Avg Mood</th></tr>`);
     for (const { tag, avg, count } of tagStats) {
-      parts.push(`<tr><td style="padding:2px 12px 2px 0">${tag}</td><td style="padding:2px 12px 2px 0">${count}x</td><td>${avg}/10</td></tr>`);
+      parts.push(`<tr><td style="padding:2px 12px 2px 0">${escapeHtml(tag)}</td><td style="padding:2px 12px 2px 0">${count}x</td><td>${avg}/10</td></tr>`);
     }
     parts.push(`</table>`);
   }
@@ -284,8 +301,10 @@ function buildHtmlReport(
   parts.push(`<table style="border-collapse:collapse;font-size:14px">`);
   for (const e of entries) {
     if (e.mood_score != null) {
-      const tags = e.mood_tags?.length ? ` (${e.mood_tags.join(", ")})` : "";
-      parts.push(`<tr><td style="padding:1px 12px 1px 0">${format(new Date(e.entry_date + "T00:00:00"), "MMM d")}</td><td style="padding:1px 12px 1px 0">${e.mood_score}/10</td><td style="color:#888">${e.mood_label}${tags}</td></tr>`);
+      const tags = e.mood_tags?.length
+        ? ` (${e.mood_tags.map((tag) => escapeHtml(tag)).join(", ")})`
+        : "";
+      parts.push(`<tr><td style="padding:1px 12px 1px 0">${format(new Date(e.entry_date + "T00:00:00"), "MMM d")}</td><td style="padding:1px 12px 1px 0">${e.mood_score}/10</td><td style="color:#888">${escapeHtml(e.mood_label)}${tags}</td></tr>`);
     }
   }
   parts.push(`</table>`);
@@ -295,7 +314,7 @@ function buildHtmlReport(
     parts.push(`<h3>Therapist Summary</h3>`);
     const paragraphs = aiSummary.split("\n\n").filter(Boolean);
     for (const p of paragraphs) {
-      parts.push(`<p>${p.replace(/\n/g, "<br>")}</p>`);
+      parts.push(`<p>${escapeHtml(p).replace(/\n/g, "<br>")}</p>`);
     }
   }
 

@@ -6,6 +6,7 @@ export interface Profile {
   last_entry_date: string | null;
   reminder_time: string;
   timezone: string;
+  ai_enabled: boolean;
   created_at: string;
 }
 
@@ -29,6 +30,37 @@ export interface Entry {
   voice_used: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export type EntryDraftStep = "mood" | "questions" | "freewrite";
+
+export interface EntryDraft {
+  user_id: string;
+  entry_date: string;
+  revision: number;
+  last_client_id: string;
+  last_client_sequence: number;
+  step: EntryDraftStep;
+  mood_score: number | null;
+  mood_tags: string[];
+  prompt_question: string | null;
+  prompt_category: string | null;
+  prompt_answer: string | null;
+  highlight: string | null;
+  challenge: string | null;
+  gratitude: string | null;
+  free_write: string | null;
+  swap_count: number;
+  duration_seconds: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SavedMoodTag {
+  id: string;
+  user_id: string;
+  label: string;
+  created_at: string;
 }
 
 export interface WeeklySummary {
@@ -84,6 +116,7 @@ export const MOOD_LABELS: Record<number, string> = {
 
 export const MAX_MOOD_TAGS = 10;
 export const MAX_MOOD_TAG_LENGTH = 40;
+export const MAX_SAVED_MOOD_TAGS = 100;
 
 export const MOOD_TAGS = [
   "work",

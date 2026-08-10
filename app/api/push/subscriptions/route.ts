@@ -51,26 +51,31 @@ export async function POST(request: Request) {
         : new Date(subscription.expirationTime).toISOString();
     const userAgent = request.headers.get("user-agent")?.slice(0, 512) || null;
 
-    const { data, error } = await admin
-      .from("push_subscriptions")
-      .upsert(
-        {
-          user_id: user.id,
-          endpoint: subscription.endpoint,
-          p256dh_key: subscription.keys.p256dh,
-          auth_key: subscription.keys.auth,
-          expiration_time: expirationTime,
-          user_agent: userAgent,
-          failure_count: 0,
-          last_seen_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "endpoint" }
-      )
-      .select("id")
-      .single();
+    const { data, error } = await admin.rpc(
+      "upsert_push_subscription_for_user",
+      {
+        p_user_id: user.id,
+        p_endpoint: subscription.endpoint,
+        p_p256dh_key: subscription.keys.p256dh,
+        p_auth_key: subscription.keys.auth,
+        p_expiration_time: expirationTime,
+        p_user_agent: userAgent,
+      }
+    );
 
-    if (error || !data) {
+    if (error?.code === "42501") {
+      return NextResponse.json(
+        { error: "This browser subscription belongs to another account" },
+        { status: 409 }
+      );
+    }
+    if (error?.code === "54000") {
+      return NextResponse.json(
+        { error: "This account has reached the device reminder limit" },
+        { status: 422 }
+      );
+    }
+    if (error || typeof data !== "string") {
       console.error("Failed to save push subscription");
       return NextResponse.json(
         { error: "Failed to enable browser reminders" },
@@ -78,7 +83,7 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ id: data.id }, { status: 201 });
+    return NextResponse.json({ id: data }, { status: 201 });
   } catch (error) {
     console.error(
       "Unexpected error while saving push subscription:",

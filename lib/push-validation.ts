@@ -52,21 +52,29 @@ export function isValidPushKeys(p256dh: string, auth: string): boolean {
   );
 }
 
-export function isAllowedPushEndpoint(value: string): boolean {
+function normalizePushEndpoint(value: string): string | null {
   try {
     const endpoint = new URL(value);
     const hostname = endpoint.hostname.toLowerCase();
-    return (
+    if (
       endpoint.protocol === "https:" &&
       !endpoint.username &&
       !endpoint.password &&
+      !endpoint.hash &&
       (!endpoint.port || endpoint.port === "443") &&
       (EXACT_PUSH_HOSTS.has(hostname) ||
         PUSH_HOST_SUFFIXES.some((suffix) => hostname.endsWith(suffix)))
-    );
+    ) {
+      return endpoint.toString();
+    }
+    return null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+export function isAllowedPushEndpoint(value: string): boolean {
+  return normalizePushEndpoint(value) !== null;
 }
 
 export function parsePushSubscription(value: unknown): ValidPushSubscription | null {
@@ -74,9 +82,10 @@ export function parsePushSubscription(value: unknown): ValidPushSubscription | n
     return null;
   }
 
+  const endpoint = normalizePushEndpoint(value.endpoint);
   if (
-    !isAllowedPushEndpoint(value.endpoint) ||
-    value.endpoint.length > 4096 ||
+    !endpoint ||
+    endpoint.length > 4096 ||
     typeof value.keys.p256dh !== "string" ||
     typeof value.keys.auth !== "string" ||
     !isValidPushKeys(value.keys.p256dh, value.keys.auth)
@@ -99,7 +108,7 @@ export function parsePushSubscription(value: unknown): ValidPushSubscription | n
   }
 
   return {
-    endpoint: value.endpoint,
+    endpoint,
     expirationTime: expirationTime ?? null,
     keys: {
       p256dh: value.keys.p256dh,
@@ -110,9 +119,8 @@ export function parsePushSubscription(value: unknown): ValidPushSubscription | n
 
 export function parseEndpoint(value: unknown): string | null {
   if (!isRecord(value) || typeof value.endpoint !== "string") return null;
-  return isAllowedPushEndpoint(value.endpoint) && value.endpoint.length <= 4096
-    ? value.endpoint
-    : null;
+  const endpoint = normalizePushEndpoint(value.endpoint);
+  return endpoint && endpoint.length <= 4096 ? endpoint : null;
 }
 
 export function parseSubscriptionId(value: unknown): string | null {
