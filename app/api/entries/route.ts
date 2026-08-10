@@ -3,7 +3,13 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateAcknowledgment } from "@/lib/claude";
 import { checkRateLimit, readLimitedJson } from "@/lib/security";
-import { validateEntryInput } from "@/lib/validation";
+import type { Entry } from "@/lib/types";
+import { parseJsonObject, validateEntryInput } from "@/lib/validation";
+
+type FinalizedEntry = Entry & {
+  ai_content_hash: string | null;
+  ai_input_hash: string | null;
+};
 
 export async function GET() {
   const supabase = await createClient();
@@ -53,7 +59,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const parsedBody = await readLimitedJson(request, 48 * 1024);
+  const parsedBody = await readLimitedJson(request, 160 * 1024);
   if (!parsedBody.ok) {
     return NextResponse.json(
       { error: parsedBody.tooLarge ? "Request body too large" : "Invalid JSON body" },
@@ -66,7 +72,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: validated.error }, { status: 400 });
   }
   const body = validated.data;
-  const { prompt_category: promptCategory, ...entryData } = body;
+  const promptCategory = body.prompt_category;
   const acknowledgmentInput = {
     mood_score: body.mood_score,
     mood_label: body.mood_label,
@@ -78,7 +84,18 @@ export async function POST(request: Request) {
     free_write: body.free_write,
   };
   const aiInputHash = createHash("sha256")
-    .update(JSON.stringify({ version: 1, ...acknowledgmentInput }))
+    .update(
+      JSON.stringify({
+        version: 2,
+        entry_date: body.entry_date,
+        ...acknowledgmentInput,
+        mood_tags: body.mood_tags,
+        prompt_category: body.prompt_category,
+        word_count: body.word_count,
+        entry_duration_seconds: body.entry_duration_seconds,
+        voice_used: body.voice_used,
+      })
+    )
     .digest("hex");
 
   const { data: profile, error: profileError } = await supabase
@@ -88,27 +105,71 @@ export async function POST(request: Request) {
     .single();
   const aiEnabled = !profileError && profile?.ai_enabled === true;
 
-  const { data: entry, error } = await supabase
-    .from("entries")
-    .upsert(
-      {
-        user_id: user.id,
-        ...entryData,
-        ai_content_hash: aiInputHash,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,entry_date" }
-    )
-    .select()
-    .single();
+  const { data: finalizationData, error: finalizationError } =
+    await supabase.rpc("finalize_entry_draft", {
+      p_entry_date: body.entry_date,
+      p_expected_draft_revision: body.draft_revision,
+      p_prompt_question: body.prompt_question,
+      p_prompt_answer: body.prompt_answer,
+      p_highlight: body.highlight,
+      p_challenge: body.challenge,
+      p_gratitude: body.gratitude,
+      p_free_write: body.free_write,
+      p_mood_score: body.mood_score,
+      p_mood_label: body.mood_label,
+      p_mood_tags: body.mood_tags,
+      p_word_count: body.word_count,
+      p_entry_duration_seconds: body.entry_duration_seconds,
+      p_voice_used: body.voice_used,
+      p_ai_content_hash: aiInputHash,
+    });
 
-  if (error || !entry) {
-    console.error("Failed to save entry:", error?.message ?? "No row returned");
+  if (finalizationError) {
+    console.error("Failed to finalize an entry draft");
+    if (finalizationError.code === "22023") {
+      return NextResponse.json({ error: "Invalid entry" }, { status: 400 });
+    }
+    if (finalizationError.code === "42501") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
     return NextResponse.json(
       { error: "Failed to save entry" },
       { status: 500 }
     );
   }
+
+  const finalization = parseJsonObject(finalizationData);
+  if (finalization?.status === "stale") {
+    return NextResponse.json(
+      { error: "The entry draft has changed", code: "stale" },
+      { status: 409 }
+    );
+  }
+  if (finalization?.status === "conflict") {
+    return NextResponse.json(
+      {
+        error: "A different entry is already finalized for this date",
+        code: "finalized_conflict",
+      },
+      { status: 409 }
+    );
+  }
+
+  const entryData = parseJsonObject(finalization?.entry);
+  const entryWasCreated = finalization?.status === "created";
+  if (
+    (!entryWasCreated && finalization?.status !== "existing") ||
+    !entryData ||
+    typeof entryData.id !== "string" ||
+    typeof entryData.updated_at !== "string"
+  ) {
+    console.error("Entry finalization returned an invalid result");
+    return NextResponse.json(
+      { error: "Failed to save entry" },
+      { status: 500 }
+    );
+  }
+  const entry = entryData as unknown as FinalizedEntry;
 
   const contentChanged = entry.ai_input_hash !== aiInputHash;
   let aiAcknowledgment =
@@ -207,7 +268,7 @@ export async function POST(request: Request) {
 
   const today = body.entry_date;
 
-  if (body.prompt_question && body.prompt_answer) {
+  if (entryWasCreated && body.prompt_question && body.prompt_answer) {
     const { error: interactionError } = await supabase
       .from("prompt_interactions")
       .insert({

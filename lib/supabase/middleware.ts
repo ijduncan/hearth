@@ -25,6 +25,10 @@ export async function updateSession(
   const pathname = request.nextUrl.pathname;
   const isApi = pathname.startsWith("/api/");
   const isCron = pathname.startsWith("/api/cron/");
+  const bodyLimit =
+    pathname === "/api/entries" || pathname === "/api/entry-drafts"
+      ? 160 * 1024
+      : 64 * 1024;
 
   if (isApi && !isTrustedMutation(request)) {
     return noStore(
@@ -32,7 +36,7 @@ export async function updateSession(
     );
   }
 
-  if (isApi && exceedsBodyLimit(request)) {
+  if (isApi && exceedsBodyLimit(request, bodyLimit)) {
     return noStore(
       NextResponse.json({ error: "Request body too large" }, { status: 413 })
     );
