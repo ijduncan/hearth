@@ -22,6 +22,15 @@ interface StatusMessage {
   text: string;
 }
 
+class SubscriptionSaveError extends Error {
+  constructor(
+    message: string,
+    readonly status: number
+  ) {
+    super(message);
+  }
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -94,7 +103,10 @@ async function saveSubscription(subscription: PushSubscription): Promise<string>
   });
 
   if (!response.ok) {
-    throw new Error(await responseError(response, "Could not save this device"));
+    throw new SubscriptionSaveError(
+      await responseError(response, "Could not save this device"),
+      response.status
+    );
   }
 
   const body: unknown = await response.json();
@@ -169,7 +181,22 @@ export function EveningReminderCard({
         const existingSubscription = await registration.pushManager.getSubscription();
         if (!existingSubscription) return;
 
-        const id = await saveSubscription(existingSubscription);
+        let id: string;
+        try {
+          id = await saveSubscription(existingSubscription);
+        } catch (error) {
+          if (error instanceof SubscriptionSaveError && error.status === 409) {
+            await existingSubscription.unsubscribe();
+            if (!cancelled) {
+              setMessage({
+                kind: "error",
+                text: "A different Hearth account used notifications here. Turn reminders on again for this account.",
+              });
+            }
+            return;
+          }
+          throw error;
+        }
         if (!cancelled) setSubscriptionId(id);
       } catch (error) {
         if (!cancelled) {
@@ -263,7 +290,12 @@ export function EveningReminderCard({
         const id = await saveSubscription(subscription);
         setSubscriptionId(id);
       } catch (error) {
-        if (createdSubscription) await subscription.unsubscribe();
+        if (
+          createdSubscription ||
+          (error instanceof SubscriptionSaveError && error.status === 409)
+        ) {
+          await subscription.unsubscribe();
+        }
         throw error;
       }
 

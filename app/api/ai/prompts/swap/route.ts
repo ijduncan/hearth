@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getPersonalizedPrompt } from "@/lib/prompts";
-import { checkRateLimit } from "@/lib/security";
+import { checkRateLimit, readLimitedJson } from "@/lib/security";
 import { isValidDateString, parseJsonObject } from "@/lib/validation";
 
 export async function POST(request: Request) {
@@ -22,12 +22,14 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: Record<string, unknown> | null = null;
-  try {
-    body = parseJsonObject(await request.json());
-  } catch {
-    // Handled by validation below.
+  const parsedBody = await readLimitedJson(request, 2 * 1024);
+  if (!parsedBody.ok) {
+    return NextResponse.json(
+      { error: parsedBody.tooLarge ? "Request body too large" : "Invalid JSON body" },
+      { status: parsedBody.tooLarge ? 413 : 400 }
+    );
   }
+  const body = parseJsonObject(parsedBody.value);
   if (!body) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }

@@ -14,7 +14,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import type { Profile } from "@/lib/types";
+import { MoodVocabularyProvider } from "@/components/journal/MoodVocabularyProvider";
+import type { Profile, SavedMoodTag } from "@/lib/types";
 
 const NAV_ITEMS = [
   { href: "/", label: "Today", icon: BookOpen },
@@ -24,11 +25,35 @@ const NAV_ITEMS = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
+async function removeCurrentDeviceReminder() {
+  if (!("serviceWorker" in navigator)) return;
+
+  const registration = await navigator.serviceWorker.getRegistration("/");
+  const subscription = await registration?.pushManager.getSubscription();
+  if (!subscription) return;
+
+  try {
+    await fetch("/api/push/subscriptions", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ endpoint: subscription.endpoint }),
+    });
+  } finally {
+    // Local unsubscribe is the privacy boundary on a shared or surrendered
+    // device. A stale server row will be removed after the endpoint returns 410.
+    await subscription.unsubscribe();
+  }
+}
+
 export function AppShell({
   profile,
+  initialMoodTags,
+  moodTagsLoadFailed,
   children,
 }: {
   profile: Profile | null;
+  initialMoodTags: SavedMoodTag[];
+  moodTagsLoadFailed: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -36,8 +61,14 @@ export function AppShell({
 
   const handleSignOut = async () => {
     const supabase = createClient();
+    try {
+      await removeCurrentDeviceReminder();
+    } catch {
+      // Signing out must still proceed if browser push cleanup is unavailable.
+    }
     await supabase.auth.signOut();
-    router.push("/login");
+    router.replace("/login");
+    router.refresh();
   };
 
   return (
@@ -68,7 +99,12 @@ export function AppShell({
       </header>
 
       {/* Main content */}
-      <main className="mx-auto max-w-2xl px-4 py-6 pb-24">{children}</main>
+      <MoodVocabularyProvider
+        initialTags={initialMoodTags}
+        initialLoadFailed={moodTagsLoadFailed}
+      >
+        <main className="mx-auto max-w-2xl px-4 py-6 pb-24">{children}</main>
+      </MoodVocabularyProvider>
 
       {/* Bottom nav (mobile) */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 border-t bg-background/80 backdrop-blur-sm">

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { readLimitedJson } from "@/lib/security";
 import { isValidDateString, parseJsonObject } from "@/lib/validation";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -12,12 +13,14 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: Record<string, unknown> | null = null;
-  try {
-    body = parseJsonObject(await request.json());
-  } catch {
-    // Handled by validation below.
+  const parsedBody = await readLimitedJson(request, 2 * 1024);
+  if (!parsedBody.ok) {
+    return NextResponse.json(
+      { error: parsedBody.tooLarge ? "Request body too large" : "Invalid JSON body" },
+      { status: parsedBody.tooLarge ? 413 : 400 }
+    );
   }
+  const body = parseJsonObject(parsedBody.value);
   const entryId = body?.entryId;
   const newDate = body?.newDate;
 
@@ -72,7 +75,19 @@ export async function PATCH(request: Request) {
     .single();
 
   if (updateError) {
-    console.error("Failed to move entry:", updateError.message);
+    if (updateError.code === "PDT01") {
+      return NextResponse.json(
+        { error: "A draft is already in progress for that date" },
+        { status: 409 }
+      );
+    }
+    if (updateError.code === "23505") {
+      return NextResponse.json(
+        { error: "An entry already exists on that date" },
+        { status: 409 }
+      );
+    }
+    console.error("Failed to move an entry");
     return NextResponse.json(
       { error: "Failed to move entry" },
       { status: 500 }

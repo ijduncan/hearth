@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { generateMonthlySummary } from "@/lib/claude";
 import { startOfMonth, endOfMonth, format, subMonths } from "date-fns";
-import { checkRateLimit } from "@/lib/security";
+import { checkRateLimit, readLimitedJson } from "@/lib/security";
 import { isValidDateString, parseJsonObject } from "@/lib/validation";
 
 export async function POST(request: Request) {
@@ -23,11 +24,16 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: Record<string, unknown> | null = null;
-  try {
-    body = parseJsonObject(await request.json());
-  } catch {
-    // An empty object is allowed.
+  const parsedBody = await readLimitedJson(request, 1024);
+  if (!parsedBody.ok) {
+    return NextResponse.json(
+      { error: parsedBody.tooLarge ? "Request body too large" : "Invalid JSON body" },
+      { status: parsedBody.tooLarge ? 413 : 400 }
+    );
+  }
+  const body = parseJsonObject(parsedBody.value);
+  if (!body) {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
   if (body?.date != null && !isValidDateString(body.date)) {
     return NextResponse.json({ error: "date must be YYYY-MM-DD" }, { status: 400 });
@@ -74,13 +80,70 @@ export async function POST(request: Request) {
   }
 
   // Get profile
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("display_name")
+    .select("display_name, ai_enabled")
     .eq("id", user.id)
     .single();
+  if (profileError || !profile) {
+    return NextResponse.json({ error: "Failed to load AI settings" }, { status: 500 });
+  }
+  if (!profile.ai_enabled) {
+    return NextResponse.json(
+      { error: "Enable AI reflections in Settings to generate summaries" },
+      { status: 403 }
+    );
+  }
+
+  let admin: ReturnType<typeof createAdminClient>;
+  try {
+    admin = createAdminClient();
+  } catch {
+    return NextResponse.json(
+      { error: "Monthly summary service is not configured" },
+      { status: 503 }
+    );
+  }
+
+  const { data: claimToken, error: claimError } = await admin.rpc(
+    "claim_summary_generation",
+    {
+      p_user_id: user.id,
+      p_summary_kind: "monthly",
+      p_period_start: monthStartStr,
+    }
+  );
+  if (claimError) {
+    console.error("Failed to claim monthly summary generation");
+    return NextResponse.json(
+      { error: "Failed to prepare monthly summary" },
+      { status: 500 }
+    );
+  }
+  if (typeof claimToken !== "string") {
+    return NextResponse.json(
+      { error: "Monthly summary generation is already in progress" },
+      { status: 409, headers: { "Retry-After": "30" } }
+    );
+  }
 
   try {
+    const dailyBudget = await checkRateLimit(
+      supabase,
+      "monthly-summary-daily",
+      3,
+      24 * 60 * 60
+    );
+    if (!dailyBudget.allowed) {
+      return NextResponse.json(
+        { error: "Daily monthly-summary limit reached" },
+        {
+          status: 429,
+          headers: { "Retry-After": String(dailyBudget.retryAfterSeconds) },
+        }
+      );
+    }
+
     const summaryText = await generateMonthlySummary(
       entries,
       profile?.display_name || "friend"
@@ -128,5 +191,16 @@ export async function POST(request: Request) {
       { error: "Failed to generate monthly summary" },
       { status: 500 }
     );
+  } finally {
+    const { error: releaseError } = await admin.rpc(
+      "release_summary_generation",
+      {
+        p_user_id: user.id,
+        p_summary_kind: "monthly",
+        p_period_start: monthStartStr,
+        p_claim_token: claimToken,
+      }
+    );
+    if (releaseError) console.error("Failed to release monthly summary claim");
   }
 }
