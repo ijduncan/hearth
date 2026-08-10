@@ -75,7 +75,19 @@ export async function PATCH(request: Request) {
     .single();
 
   if (updateError) {
-    console.error("Failed to move entry:", updateError.message);
+    if (updateError.code === "PDT01") {
+      return NextResponse.json(
+        { error: "A draft is already in progress for that date" },
+        { status: 409 }
+      );
+    }
+    if (updateError.code === "23505") {
+      return NextResponse.json(
+        { error: "An entry already exists on that date" },
+        { status: 409 }
+      );
+    }
+    console.error("Failed to move an entry");
     return NextResponse.json(
       { error: "Failed to move entry" },
       { status: 500 }

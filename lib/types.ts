@@ -32,6 +32,30 @@ export interface Entry {
   updated_at: string;
 }
 
+export type EntryDraftStep = "mood" | "questions" | "freewrite";
+
+export interface EntryDraft {
+  user_id: string;
+  entry_date: string;
+  revision: number;
+  last_client_id: string;
+  last_client_sequence: number;
+  step: EntryDraftStep;
+  mood_score: number | null;
+  mood_tags: string[];
+  prompt_question: string | null;
+  prompt_category: string | null;
+  prompt_answer: string | null;
+  highlight: string | null;
+  challenge: string | null;
+  gratitude: string | null;
+  free_write: string | null;
+  swap_count: number;
+  duration_seconds: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface WeeklySummary {
   id: string;
   user_id: string;

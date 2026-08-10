@@ -74,6 +74,8 @@ export function MoodSlider({
       <div className="px-2">
         <input
           type="range"
+          aria-label="Mood score"
+          aria-valuetext={`${label}, ${value} out of 10`}
           min={1}
           max={10}
           step={1}

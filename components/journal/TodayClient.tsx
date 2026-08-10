@@ -36,6 +36,7 @@ export function TodayClient({ profile, recentEntries }: TodayClientProps) {
         </p>
       </div>
       <EntryForm
+        key={`${localDateStr}:${existingEntry?.id ?? "draft"}`}
         todaysPrompt={todaysPrompt}
         existingEntry={existingEntry}
       />
