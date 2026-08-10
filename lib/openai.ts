@@ -19,13 +19,28 @@ function getOpenAIClient(): OpenAI {
   return openai;
 }
 
+function modelFromEnv(value: string | undefined, fallback: string): string {
+  // Environment values may pick up a leading byte-order mark when they are
+  // piped from PowerShell. OpenAI treats that invisible character as part of
+  // the model ID, so normalize it before every request.
+  const normalized = value?.replace(/^\uFEFF/, "").trim();
+  return normalized || fallback;
+}
+
 // Keep GPT-5.6-family model IDs configurable so tier changes do not require a
 // code deploy. The defaults intentionally use all three tiers by workload.
-const ACKNOWLEDGMENT_MODEL =
-  process.env.OPENAI_ACKNOWLEDGMENT_MODEL || "gpt-5.6-luna";
-const INSIGHTS_MODEL =
-  process.env.OPENAI_INSIGHTS_MODEL || "gpt-5.6-terra";
-const REPORT_MODEL = process.env.OPENAI_REPORT_MODEL || "gpt-5.6-sol";
+const ACKNOWLEDGMENT_MODEL = modelFromEnv(
+  process.env.OPENAI_ACKNOWLEDGMENT_MODEL,
+  "gpt-5.6-luna"
+);
+const INSIGHTS_MODEL = modelFromEnv(
+  process.env.OPENAI_INSIGHTS_MODEL,
+  "gpt-5.6-terra"
+);
+const REPORT_MODEL = modelFromEnv(
+  process.env.OPENAI_REPORT_MODEL,
+  "gpt-5.6-sol"
+);
 
 export function isOpenAIConfigured(): boolean {
   return Boolean(process.env.OPENAI_API_KEY?.trim());

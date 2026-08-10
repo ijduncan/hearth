@@ -18,6 +18,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Do not consume a user's report allowance when the server is missing its
+  // provider configuration.
+  if (!isOpenAIConfigured()) {
+    return NextResponse.json(
+      { error: "AI service is not configured" },
+      { status: 503 }
+    );
+  }
+
   const rateLimit = await checkRateLimit(supabase, "therapist-summary", 2, 60 * 60);
   if (!rateLimit.allowed) {
     return NextResponse.json(
@@ -86,13 +95,6 @@ export async function POST(request: Request) {
       { status: 503 }
     );
   }
-  if (!isOpenAIConfigured()) {
-    return NextResponse.json(
-      { error: "AI service is not configured" },
-      { status: 503 }
-    );
-  }
-
   const periodLabel = `${format(new Date(startDate + "T00:00:00"), "MMM d, yyyy")} to ${format(new Date(endDate + "T00:00:00"), "MMM d, yyyy")}`;
 
   const dailyBudget = await checkRateLimit(
