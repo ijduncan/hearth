@@ -1,7 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Lora } from "next/font/google";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import {
+  isThemePreference,
+  THEME_BOOTSTRAP_SCRIPT,
+  THEME_COOKIE_NAME,
+} from "@/lib/theme";
 import "./globals.css";
 
 const inter = Inter({
@@ -39,23 +44,25 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const nonce = (await headers()).get("x-nonce") ?? undefined;
+  const [headerStore, cookieStore] = await Promise.all([headers(), cookies()]);
+  const nonce = headerStore.get("x-nonce") ?? undefined;
+  const cookieTheme = cookieStore.get(THEME_COOKIE_NAME)?.value;
+  const savedTheme = isThemePreference(cookieTheme) ? cookieTheme : null;
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html
+      lang="en"
+      className={savedTheme === "dark" ? "dark" : undefined}
+      style={savedTheme ? { colorScheme: savedTheme } : undefined}
+      suppressHydrationWarning
+    >
       <head>
         <script
+          id="hearth-theme-bootstrap"
           nonce={nonce}
           suppressHydrationWarning
           dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                var stored = localStorage.getItem('theme');
-                if (stored === 'dark' || (!stored && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-                  document.documentElement.classList.add('dark');
-                }
-              })();
-            `,
+            __html: THEME_BOOTSTRAP_SCRIPT,
           }}
         />
       </head>
