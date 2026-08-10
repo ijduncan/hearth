@@ -14,7 +14,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import type { Profile } from "@/lib/types";
+import { MoodVocabularyProvider } from "@/components/journal/MoodVocabularyProvider";
+import type { Profile, SavedMoodTag } from "@/lib/types";
 
 const NAV_ITEMS = [
   { href: "/", label: "Today", icon: BookOpen },
@@ -46,9 +47,13 @@ async function removeCurrentDeviceReminder() {
 
 export function AppShell({
   profile,
+  initialMoodTags,
+  moodTagsLoadFailed,
   children,
 }: {
   profile: Profile | null;
+  initialMoodTags: SavedMoodTag[];
+  moodTagsLoadFailed: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -94,7 +99,12 @@ export function AppShell({
       </header>
 
       {/* Main content */}
-      <main className="mx-auto max-w-2xl px-4 py-6 pb-24">{children}</main>
+      <MoodVocabularyProvider
+        initialTags={initialMoodTags}
+        initialLoadFailed={moodTagsLoadFailed}
+      >
+        <main className="mx-auto max-w-2xl px-4 py-6 pb-24">{children}</main>
+      </MoodVocabularyProvider>
 
       {/* Bottom nav (mobile) */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 border-t bg-background/80 backdrop-blur-sm">
