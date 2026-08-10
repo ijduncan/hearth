@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { generateTherapistSummary } from "@/lib/claude";
+import {
+  generateTherapistSummary,
+  isOpenAIConfigured,
+} from "@/lib/openai";
 import { differenceInCalendarDays, format } from "date-fns";
 import { checkRateLimit, readLimitedJson } from "@/lib/security";
 import { isValidDateString, parseJsonObject } from "@/lib/validation";
@@ -79,8 +82,14 @@ export async function POST(request: Request) {
   }
   if (!profile.ai_enabled) {
     return NextResponse.json(
-      { error: "Enable AI reflections in Settings to generate this report" },
-      { status: 403 }
+      { error: "AI generation is temporarily unavailable" },
+      { status: 503 }
+    );
+  }
+  if (!isOpenAIConfigured()) {
+    return NextResponse.json(
+      { error: "AI service is not configured" },
+      { status: 503 }
     );
   }
 
@@ -106,7 +115,8 @@ export async function POST(request: Request) {
     const summary = await generateTherapistSummary(
       entries,
       profile?.display_name || "the client",
-      periodLabel
+      periodLabel,
+      user.id
     );
 
     return NextResponse.json({ summary });

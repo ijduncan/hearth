@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { generateAcknowledgment } from "@/lib/claude";
+import { generateAcknowledgment, isOpenAIConfigured } from "@/lib/openai";
 import { checkRateLimit, readLimitedJson } from "@/lib/security";
 import type { Entry } from "@/lib/types";
 import { parseJsonObject, validateEntryInput } from "@/lib/validation";
@@ -103,7 +103,8 @@ export async function POST(request: Request) {
     .select("display_name, ai_enabled")
     .eq("id", user.id)
     .single();
-  const aiEnabled = !profileError && profile?.ai_enabled === true;
+  const aiEnabled =
+    !profileError && profile?.ai_enabled === true && isOpenAIConfigured();
 
   const { data: finalizationData, error: finalizationError } =
     await supabase.rpc("finalize_entry_draft", {
@@ -229,7 +230,8 @@ export async function POST(request: Request) {
         try {
           aiAcknowledgment = await generateAcknowledgment(
             acknowledgmentInput,
-            profile?.display_name || "friend"
+            profile?.display_name || "friend",
+            user.id
           );
           if (!aiAcknowledgment.trim()) {
             throw new Error("AI acknowledgment was empty");

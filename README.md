@@ -1,7 +1,7 @@
 # Hearth
 
 A private, self-hosted AI journaling app for couples or small households.
-Built with Next.js 16, Supabase, and Claude.
+Built with Next.js 16, Supabase, and OpenAI.
 
 **Core philosophy:** Two minutes. Three questions. No blank page. An AI that listens — not lectures.
 
@@ -31,7 +31,7 @@ Built with Next.js 16, Supabase, and Claude.
 |---|---|
 | Framework | Next.js 16 (App Router) |
 | Database | Supabase (Postgres + Auth) |
-| AI | Anthropic Claude API |
+| AI | OpenAI Responses API |
 | Styling | Tailwind CSS + shadcn/ui |
 | Charts | Recharts |
 | Motion | Framer Motion |
@@ -42,7 +42,7 @@ Built with Next.js 16, Supabase, and Claude.
 
 - Node.js 24+
 - A [Supabase](https://supabase.com) project (free tier works)
-- An [Anthropic API key](https://console.anthropic.com)
+- An [OpenAI API key](https://platform.openai.com/api-keys)
 
 ### Setup
 
@@ -62,7 +62,7 @@ Built with Next.js 16, Supabase, and Claude.
    - `NEXT_PUBLIC_SUPABASE_URL` — from Supabase dashboard
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — from Supabase dashboard
    - `SUPABASE_SERVICE_ROLE_KEY` — from Supabase dashboard (Settings > API)
-   - `ANTHROPIC_API_KEY` — from Anthropic console
+   - `OPENAI_API_KEY` — from the OpenAI API dashboard
    - `ALLOWED_EMAILS` — comma-separated list of allowed email addresses
    - `VAPID_SUBJECT`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` — Web Push credentials
    - `CRON_SECRET` — a random string of at least 32 characters for cron job auth
@@ -90,11 +90,15 @@ Built with Next.js 16, Supabase, and Claude.
 
 ### AI Privacy
 
-AI processing is opt-in per account and starts disabled. A user can enable it
-under **Settings > AI reflections** after reading the disclosure. When enabled,
-Hearth sends the journal text needed for acknowledgments and summaries to the
-configured Anthropic API. When disabled, journal saves remain in Hearth and
-Supabase and no scheduled AI summaries are generated for that account.
+AI processing is enabled for every Hearth account. Hearth sends the journal
+text and display name needed for acknowledgments and summaries to the OpenAI
+API. Daily acknowledgments use GPT-5.6 Luna, weekly and monthly insights use
+GPT-5.6 Terra, and therapist/export reports use GPT-5.6 Sol by default.
+Hearth sets `store: false` so Responses application state is not retained for
+later retrieval. OpenAI may still retain API content in abuse-monitoring logs
+for up to 30 days unless stricter project data controls are enabled. The
+internal `ai_enabled` flag remains available to administrators as an emergency
+kill switch, but it is not a user-facing preference.
 
 ### Browser Reminders
 
@@ -199,7 +203,7 @@ components/
   insights/         — Charts, history, summary
 lib/
   supabase/         — Supabase client/server/middleware
-  claude.ts         — Anthropic API wrapper
+  openai.ts         — OpenAI Responses API wrapper
   prompts.ts        — 120+ rotating prompts
 ```
 

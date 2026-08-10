@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { generateMonthlySummary } from "@/lib/claude";
+import { generateMonthlySummary, isOpenAIConfigured } from "@/lib/openai";
 import { startOfMonth, endOfMonth, format, subMonths } from "date-fns";
 import { checkRateLimit, readLimitedJson } from "@/lib/security";
 import { isValidDateString, parseJsonObject } from "@/lib/validation";
@@ -90,8 +90,14 @@ export async function POST(request: Request) {
   }
   if (!profile.ai_enabled) {
     return NextResponse.json(
-      { error: "Enable AI reflections in Settings to generate summaries" },
-      { status: 403 }
+      { error: "AI generation is temporarily unavailable" },
+      { status: 503 }
+    );
+  }
+  if (!isOpenAIConfigured()) {
+    return NextResponse.json(
+      { error: "AI service is not configured" },
+      { status: 503 }
     );
   }
 
@@ -146,7 +152,8 @@ export async function POST(request: Request) {
 
     const summaryText = await generateMonthlySummary(
       entries,
-      profile?.display_name || "friend"
+      profile?.display_name || "friend",
+      user.id
     );
 
     const avgMood =

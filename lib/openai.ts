@@ -1,15 +1,35 @@
-import Anthropic from "@anthropic-ai/sdk";
+import "server-only";
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+import { createHash } from "node:crypto";
+import OpenAI from "openai";
 
-// Keep model IDs configurable so provider retirements do not require code changes.
-// The previous Claude 4 launch IDs were removed from the API in 2026 and returned 404s.
-const REFLECTION_MODEL =
-  process.env.ANTHROPIC_REFLECTION_MODEL || "claude-sonnet-4-6";
-const THERAPIST_MODEL =
-  process.env.ANTHROPIC_THERAPIST_MODEL || "claude-opus-4-8";
+let openai: OpenAI | null = null;
+
+function getOpenAIClient(): OpenAI {
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  if (!apiKey) {
+    throw new Error("OpenAI is not configured");
+  }
+
+  openai ??= new OpenAI({
+    apiKey,
+    timeout: 120_000,
+    maxRetries: 2,
+  });
+  return openai;
+}
+
+// Keep GPT-5.6-family model IDs configurable so tier changes do not require a
+// code deploy. The defaults intentionally use all three tiers by workload.
+const ACKNOWLEDGMENT_MODEL =
+  process.env.OPENAI_ACKNOWLEDGMENT_MODEL || "gpt-5.6-luna";
+const INSIGHTS_MODEL =
+  process.env.OPENAI_INSIGHTS_MODEL || "gpt-5.6-terra";
+const REPORT_MODEL = process.env.OPENAI_REPORT_MODEL || "gpt-5.6-sol";
+
+export function isOpenAIConfigured(): boolean {
+  return Boolean(process.env.OPENAI_API_KEY?.trim());
+}
 
 function truncateText(value: string, maxCharacters: number): string {
   if (value.length <= maxCharacters) return value;
@@ -18,6 +38,10 @@ function truncateText(value: string, maxCharacters: number): string {
 
 function normalizeDisplayName(value: string): string {
   return truncateText(value.trim() || "friend", 100);
+}
+
+function safetyIdentifier(userId: string): string {
+  return createHash("sha256").update(userId).digest("hex");
 }
 
 function joinSectionsWithinBudget(
@@ -39,24 +63,54 @@ function joinSectionsWithinBudget(
     .slice(0, maxCharacters);
 }
 
-async function createMessage(
-  params: Anthropic.MessageCreateParamsNonStreaming
-): Promise<Anthropic.Message> {
+async function generateText({
+  model,
+  maxOutputTokens,
+  instructions,
+  input,
+  userId,
+}: {
+  model: string;
+  maxOutputTokens: number;
+  instructions: string;
+  input: string;
+  userId: string;
+}): Promise<string> {
   try {
-    return await anthropic.messages.create(params);
+    const response = await getOpenAIClient().responses.create({
+      model,
+      max_output_tokens: maxOutputTokens,
+      instructions,
+      input,
+      reasoning: { effort: "none" },
+      safety_identifier: safetyIdentifier(userId),
+      // Journal content is sensitive and these calls are single-turn, so Hearth does
+      // not need OpenAI to retain response application state for later retrieval.
+      store: false,
+    });
+
+    const output = response.output_text.trim();
+    if (!output) {
+      console.error("OpenAI generation returned no text", {
+        model,
+        status: response.status,
+        incompleteReason: response.incomplete_details?.reason,
+      });
+      throw new Error("OpenAI returned no text output");
+    }
+
+    return output;
   } catch (error) {
     const apiError = error as {
       status?: number;
-      message?: string;
-      request_id?: string;
-      error?: { type?: string };
+      code?: string;
+      requestID?: string;
     };
-    console.error("Anthropic generation failed", {
-      model: params.model,
+    console.error("OpenAI generation failed", {
+      model,
       status: apiError.status,
-      type: apiError.error?.type,
-      requestId: apiError.request_id,
-      message: apiError.message,
+      code: apiError.code,
+      requestId: apiError.requestID,
     });
     throw error;
   }
@@ -131,7 +185,8 @@ export async function generateAcknowledgment(
     gratitude: string | null;
     free_write: string | null;
   },
-  displayName: string
+  displayName: string,
+  userId: string
 ): Promise<string> {
   const parts: string[] = [];
   if (entryData.mood_score)
@@ -142,25 +197,21 @@ export async function generateAcknowledgment(
     parts.push(
       `Prompt "${entryData.prompt_question}": ${entryData.prompt_answer}`
     );
-  if (entryData.highlight) parts.push(`Best part of the day: ${entryData.highlight}`);
-  if (entryData.challenge) parts.push(`What felt hard: ${entryData.challenge}`);
-  if (entryData.gratitude) parts.push(`Grateful for: ${entryData.gratitude}`);
+  if (entryData.highlight)
+    parts.push(`Best part of the day: ${entryData.highlight}`);
+  if (entryData.challenge)
+    parts.push(`What felt hard: ${entryData.challenge}`);
+  if (entryData.gratitude)
+    parts.push(`Grateful for: ${entryData.gratitude}`);
   if (entryData.free_write) parts.push(`Free write: ${entryData.free_write}`);
 
-  const message = await createMessage({
-    model: REFLECTION_MODEL,
-    max_tokens: 300,
-    system: REFLECT_SYSTEM,
-    messages: [
-      {
-        role: "user",
-        content: `The person's name is ${normalizeDisplayName(displayName)}. Here is their journal entry for today:\n\n${truncateText(parts.join("\n\n"), 24_000)}`,
-      },
-    ],
+  return generateText({
+    model: ACKNOWLEDGMENT_MODEL,
+    maxOutputTokens: 300,
+    instructions: REFLECT_SYSTEM,
+    input: `The person's name is ${normalizeDisplayName(displayName)}. Here is their journal entry for today:\n\n${truncateText(parts.join("\n\n"), 24_000)}`,
+    userId,
   });
-
-  const block = message.content[0];
-  return block.type === "text" ? block.text : "";
 }
 
 export async function generateWeeklySummary(
@@ -175,36 +226,32 @@ export async function generateWeeklySummary(
     prompt_answer: string | null;
     free_write: string | null;
   }>,
-  displayName: string
+  displayName: string,
+  userId: string
 ): Promise<string> {
   const entrySummaries = joinSectionsWithinBudget(
-    entries.map((e) => {
-      const parts: string[] = [`Date: ${e.entry_date}`];
-      if (e.mood_score) parts.push(`Mood: ${e.mood_score}/10 (${e.mood_label})`);
-      if (e.highlight) parts.push(`Highlight: ${e.highlight}`);
-      if (e.challenge) parts.push(`Challenge: ${e.challenge}`);
-      if (e.gratitude) parts.push(`Grateful for: ${e.gratitude}`);
-      if (e.prompt_answer) parts.push(`Prompt answer: ${e.prompt_answer}`);
-      if (e.free_write) parts.push(`Free write: ${e.free_write}`);
+    entries.map((entry) => {
+      const parts: string[] = [`Date: ${entry.entry_date}`];
+      if (entry.mood_score)
+        parts.push(`Mood: ${entry.mood_score}/10 (${entry.mood_label})`);
+      if (entry.highlight) parts.push(`Highlight: ${entry.highlight}`);
+      if (entry.challenge) parts.push(`Challenge: ${entry.challenge}`);
+      if (entry.gratitude) parts.push(`Grateful for: ${entry.gratitude}`);
+      if (entry.prompt_answer)
+        parts.push(`Prompt answer: ${entry.prompt_answer}`);
+      if (entry.free_write) parts.push(`Free write: ${entry.free_write}`);
       return parts.join("\n");
     }),
     100_000
   );
 
-  const message = await createMessage({
-    model: REFLECTION_MODEL,
-    max_tokens: 500,
-    system: SUMMARY_SYSTEM,
-    messages: [
-      {
-        role: "user",
-        content: `The person's name is ${normalizeDisplayName(displayName)}. Here are their journal entries from the past week:\n\n${entrySummaries}`,
-      },
-    ],
+  return generateText({
+    model: INSIGHTS_MODEL,
+    maxOutputTokens: 500,
+    instructions: SUMMARY_SYSTEM,
+    input: `The person's name is ${normalizeDisplayName(displayName)}. Here are their journal entries from the past week:\n\n${entrySummaries}`,
+    userId,
   });
-
-  const block = message.content[0];
-  return block.type === "text" ? block.text : "";
 }
 
 export async function generateMonthlySummary(
@@ -219,36 +266,32 @@ export async function generateMonthlySummary(
     prompt_answer: string | null;
     free_write: string | null;
   }>,
-  displayName: string
+  displayName: string,
+  userId: string
 ): Promise<string> {
   const entrySummaries = joinSectionsWithinBudget(
-    entries.map((e) => {
-      const parts: string[] = [`Date: ${e.entry_date}`];
-      if (e.mood_score) parts.push(`Mood: ${e.mood_score}/10 (${e.mood_label})`);
-      if (e.highlight) parts.push(`Highlight: ${e.highlight}`);
-      if (e.challenge) parts.push(`Challenge: ${e.challenge}`);
-      if (e.gratitude) parts.push(`Grateful for: ${e.gratitude}`);
-      if (e.prompt_answer) parts.push(`Prompt answer: ${e.prompt_answer}`);
-      if (e.free_write) parts.push(`Free write: ${e.free_write}`);
+    entries.map((entry) => {
+      const parts: string[] = [`Date: ${entry.entry_date}`];
+      if (entry.mood_score)
+        parts.push(`Mood: ${entry.mood_score}/10 (${entry.mood_label})`);
+      if (entry.highlight) parts.push(`Highlight: ${entry.highlight}`);
+      if (entry.challenge) parts.push(`Challenge: ${entry.challenge}`);
+      if (entry.gratitude) parts.push(`Grateful for: ${entry.gratitude}`);
+      if (entry.prompt_answer)
+        parts.push(`Prompt answer: ${entry.prompt_answer}`);
+      if (entry.free_write) parts.push(`Free write: ${entry.free_write}`);
       return parts.join("\n");
     }),
     140_000
   );
 
-  const message = await createMessage({
-    model: REFLECTION_MODEL,
-    max_tokens: 700,
-    system: MONTHLY_SYSTEM,
-    messages: [
-      {
-        role: "user",
-        content: `The person's name is ${normalizeDisplayName(displayName)}. Here are their journal entries from the past month:\n\n${entrySummaries}`,
-      },
-    ],
+  return generateText({
+    model: INSIGHTS_MODEL,
+    maxOutputTokens: 700,
+    instructions: MONTHLY_SYSTEM,
+    input: `The person's name is ${normalizeDisplayName(displayName)}. Here are their journal entries from the past month:\n\n${entrySummaries}`,
+    userId,
   });
-
-  const block = message.content[0];
-  return block.type === "text" ? block.text : "";
 }
 
 export async function generateTherapistSummary(
@@ -265,35 +308,32 @@ export async function generateTherapistSummary(
     free_write: string | null;
   }>,
   displayName: string,
-  periodLabel: string
+  periodLabel: string,
+  userId: string
 ): Promise<string> {
   const entrySummaries = joinSectionsWithinBudget(
-    entries.map((e) => {
-      const parts: string[] = [`Date: ${e.entry_date}`];
-      if (e.mood_score) parts.push(`Mood: ${e.mood_score}/10 (${e.mood_label})`);
-      if (e.mood_tags?.length) parts.push(`Tags: ${e.mood_tags.join(", ")}`);
-      if (e.highlight) parts.push(`Highlight: ${e.highlight}`);
-      if (e.challenge) parts.push(`Challenge: ${e.challenge}`);
-      if (e.gratitude) parts.push(`Grateful for: ${e.gratitude}`);
-      if (e.prompt_answer) parts.push(`Prompt answer: ${e.prompt_answer}`);
-      if (e.free_write) parts.push(`Free write: ${e.free_write}`);
+    entries.map((entry) => {
+      const parts: string[] = [`Date: ${entry.entry_date}`];
+      if (entry.mood_score)
+        parts.push(`Mood: ${entry.mood_score}/10 (${entry.mood_label})`);
+      if (entry.mood_tags?.length)
+        parts.push(`Tags: ${entry.mood_tags.join(", ")}`);
+      if (entry.highlight) parts.push(`Highlight: ${entry.highlight}`);
+      if (entry.challenge) parts.push(`Challenge: ${entry.challenge}`);
+      if (entry.gratitude) parts.push(`Grateful for: ${entry.gratitude}`);
+      if (entry.prompt_answer)
+        parts.push(`Prompt answer: ${entry.prompt_answer}`);
+      if (entry.free_write) parts.push(`Free write: ${entry.free_write}`);
       return parts.join("\n");
     }),
     160_000
   );
 
-  const message = await createMessage({
-    model: THERAPIST_MODEL,
-    max_tokens: 1200,
-    system: THERAPIST_SYSTEM,
-    messages: [
-      {
-        role: "user",
-        content: `The person's name is ${normalizeDisplayName(displayName)}. The report covers ${periodLabel}.\n\nHere are their journal entries:\n\n${entrySummaries}`,
-      },
-    ],
+  return generateText({
+    model: REPORT_MODEL,
+    maxOutputTokens: 1200,
+    instructions: THERAPIST_SYSTEM,
+    input: `The person's name is ${normalizeDisplayName(displayName)}. The report covers ${periodLabel}.\n\nHere are their journal entries:\n\n${entrySummaries}`,
+    userId,
   });
-
-  const block = message.content[0];
-  return block.type === "text" ? block.text : "";
 }

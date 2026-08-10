@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { startOfWeek, endOfWeek, format } from "date-fns";
-import { generateWeeklySummary } from "@/lib/claude";
+import { generateWeeklySummary, isOpenAIConfigured } from "@/lib/openai";
 import { verifyBearerSecret } from "@/lib/security";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -12,6 +12,12 @@ interface EligibleProfile {
 export async function GET(request: Request) {
   if (!verifyBearerSecret(request.headers.get("authorization"), process.env.CRON_SECRET)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!isOpenAIConfigured()) {
+    return NextResponse.json(
+      { error: "AI service is not configured" },
+      { status: 503 }
+    );
   }
 
   let supabase: ReturnType<typeof createAdminClient>;
@@ -103,7 +109,11 @@ export async function GET(request: Request) {
     }
 
     try {
-      const summaryText = await generateWeeklySummary(entries, profile.display_name);
+      const summaryText = await generateWeeklySummary(
+        entries,
+        profile.display_name,
+        profile.user_id
+      );
       const avgMood =
         entries.reduce((sum, entry) => sum + (entry.mood_score || 0), 0) /
         entries.length;

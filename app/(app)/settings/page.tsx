@@ -23,7 +23,6 @@ export default function SettingsPage() {
   const [displayName, setDisplayName] = useState("");
   const [avatarEmoji, setAvatarEmoji] = useState("🌿");
   const [timezone, setTimezone] = useState(() => "America/Los_Angeles");
-  const [aiEnabled, setAiEnabled] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -46,7 +45,6 @@ export default function SettingsPage() {
         setDisplayName(data.display_name);
         setAvatarEmoji(data.avatar_emoji);
         setTimezone(loadedProfile.timezone);
-        setAiEnabled(data.ai_enabled === true);
       }
       setLoading(false);
     };
@@ -69,7 +67,6 @@ export default function SettingsPage() {
         display_name: normalizedDisplayName,
         avatar_emoji: avatarEmoji,
         timezone: timezone,
-        ai_enabled: aiEnabled,
       })
       .eq("id", profile.id);
 
@@ -84,7 +81,6 @@ export default function SettingsPage() {
       display_name: normalizedDisplayName,
       avatar_emoji: avatarEmoji,
       timezone,
-      ai_enabled: aiEnabled,
     });
     setDisplayName(normalizedDisplayName);
     setSaveMessage({ kind: "success", text: "Profile settings saved." });
@@ -159,26 +155,6 @@ export default function SettingsPage() {
             </p>
           </div>
 
-          <div className="rounded-lg border p-3 space-y-2">
-            <div className="flex items-start gap-3">
-              <input
-                id="ai-reflections"
-                type="checkbox"
-                checked={aiEnabled}
-                onChange={(event) => setAiEnabled(event.target.checked)}
-                className="mt-1 h-4 w-4 accent-primary"
-              />
-              <div className="space-y-1">
-                <Label htmlFor="ai-reflections">AI reflections</Label>
-                <p className="text-xs text-muted-foreground">
-                  When enabled, Hearth sends the journal text needed for
-                  reflections and summaries to Anthropic. Leave this off to
-                  keep journal text inside Hearth and Supabase.
-                </p>
-              </div>
-            </div>
-          </div>
-
           <Button onClick={handleSave} disabled={saving || !displayName.trim()}>
             {saving ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -198,6 +174,12 @@ export default function SettingsPage() {
               {saveMessage.text}
             </p>
           ) : null}
+          <p className="text-xs text-muted-foreground">
+            Hearth uses OpenAI to create reflections and summaries from your
+            journal text and display name. Hearth disables response storage;
+            OpenAI may retain API content for abuse monitoring under its data
+            controls.
+          </p>
         </CardContent>
       </Card>
 
