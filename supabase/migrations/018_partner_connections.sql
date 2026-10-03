@@ -271,4 +271,3 @@ REVOKE ALL ON FUNCTION public.check_api_rate_limit(text, integer, integer)
   FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.check_api_rate_limit(text, integer, integer)
   TO authenticated;
-
