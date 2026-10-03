@@ -14,23 +14,25 @@ interface WeeklySummaryProps {
 export function WeeklySummary({ summary: initialSummary }: WeeklySummaryProps) {
   const [summary, setSummary] = useState(initialSummary);
   const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleGenerate = async () => {
     setGenerating(true);
+    setError(null);
     try {
       const res = await fetch("/api/ai/summary", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify(summary ? { regenerate: true, date: summary.week_start } : {}),
       });
-      if (res.ok) {
-        const data = await res.json();
-        setSummary(data);
-      }
-    } catch {
-      // silently fail
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not generate reflection");
+      setSummary(data);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Could not generate reflection");
+    } finally {
+      setGenerating(false);
     }
-    setGenerating(false);
   };
 
   return (
@@ -42,8 +44,12 @@ export function WeeklySummary({ summary: initialSummary }: WeeklySummaryProps) {
         </CardTitle>
       </CardHeader>
       <CardContent>
+        {error && <p role="alert" className="text-sm text-destructive mb-3">{error}</p>}
         {summary ? (
           <div className="space-y-3">
+            <Button variant="outline" size="sm" onClick={handleGenerate} disabled={generating}>
+              {generating ? "Reviewing journal history..." : "Refresh with full journal history"}
+            </Button>
             <MarkdownText className="font-serif">
               {summary.summary_text}
             </MarkdownText>

@@ -100,6 +100,52 @@ for up to 30 days unless stricter project data controls are enabled. The
 internal `ai_enabled` flag remains available to administrators as an emergency
 kill switch, but it is not a user-facing preference.
 
+### Journal history in AI reports
+
+New weekly and monthly reflections (including scheduled ones) and therapist/support
+exports review all of the signed-in person's saved journal entries. The selected
+week, month, or export dates remain the focus; entries outside that period supply
+explicitly dated context. Reports include mood scores, labels and tags, prompt
+questions and answers, highlights, challenges, gratitude, and free writing.
+Unsaved drafts and previous AI-generated text are excluded.
+
+History is paginated so the database row limit does not silently omit older entries.
+Small histories are supplied verbatim; large histories are reviewed in sections
+and combined into evidence notes before the final report. This reviews every
+section but is a lossy synthesis, not a guarantee that every detail appears in the
+final report. Incomplete AI responses or history-fetch failures fail generation
+rather than saving a partial report. Large histories can require additional time
+and AI requests. Existing saved reflections remain until refreshed using
+**Refresh with full journal history**.
+
+### Partner connections
+
+Open **Partner** to invite an existing, allowlisted Hearth account by email.
+Invitations expire after seven days. The recipient accepts or declines in Hearth;
+each account can have one accepted partner. No connections are created for existing
+users automatically, and invitations do not provision accounts or change the allowlist.
+
+After acceptance, either person can choose a saved entry, draft a broad emotional
+summary using AI (or write their own), edit it, and explicitly share one sentence
+of at most 15 words. Only that approved sentence and its date are visible to the
+partner, including on Today. The latest shared glimpse replaces the previous one.
+Private entries, mood scores, unsaved drafts, reflections, and exports remain private.
+Withdrawal and disconnection revoke access; edited or deleted source entries remove
+outdated glimpses. Reconnecting does not restore earlier shares.
+
+Apply `018_partner_connections.sql` before using this feature. It creates restricted
+connection/glimpse tables and authenticated RPCs without broadening journal RLS.
+For invitation emails, configure `RESEND_API_KEY`, `HEARTH_EMAIL_FROM` (a verified
+sender), and `HEARTH_APP_URL` (the HTTPS app URL). Existing Resend credentials can be
+reused. If email is unavailable, invitations still appear in the recipient's Partner
+screen, and the sender is told that email could not be sent. AI drafting uses the
+existing OpenAI configuration; manual sharing works without an AI key.
+
+Run `npm test` for API/privacy validation tests and `npm run test:partner-db` for
+connection lifecycle and access tests in an isolated, disposable PostgreSQL Docker
+container. These tests do not contact the production database, AI provider, or email
+recipients.
+
 ### Browser Reminders
 
 The Settings page can enable notifications independently on each device and

@@ -1,3 +1,4 @@
+import { loadJournalHistory } from "@/lib/journal-history";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -5,6 +6,9 @@ import { generateMonthlySummary, isOpenAIConfigured } from "@/lib/openai";
 import { startOfMonth, endOfMonth, format, subMonths } from "date-fns";
 import { checkRateLimit, readLimitedJson } from "@/lib/security";
 import { isValidDateString, parseJsonObject } from "@/lib/validation";
+
+// Large histories may need several complete-history review requests.
+export const maxDuration = 300;
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -153,7 +157,10 @@ export async function POST(request: Request) {
     const summaryText = await generateMonthlySummary(
       entries,
       profile?.display_name || "friend",
-      user.id
+      user.id,
+      await loadJournalHistory(supabase, user.id),
+      monthStartStr,
+      monthEndStr
     );
 
     const avgMood =

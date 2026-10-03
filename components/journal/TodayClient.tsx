@@ -1,15 +1,17 @@
 "use client";
 
 import { getTodaysPrompt } from "@/lib/prompts";
+import { PartnerPeek } from "@/components/partner/PartnerPeek";
 import { EntryForm } from "./EntryForm";
-import type { Profile, Entry } from "@/lib/types";
+import type { Profile, Entry, PartnerState } from "@/lib/types";
 
 interface TodayClientProps {
+  partnerState: PartnerState | null;
   profile: Profile | null;
   recentEntries: Entry[];
 }
 
-export function TodayClient({ profile, recentEntries }: TodayClientProps) {
+export function TodayClient({ profile, recentEntries, partnerState }: TodayClientProps) {
   const localDate = new Date();
   const localDateStr = localDate.toLocaleDateString("en-CA"); // YYYY-MM-DD
 
@@ -35,6 +37,7 @@ export function TodayClient({ profile, recentEntries }: TodayClientProps) {
           {formatter.format(localDate)}
         </p>
       </div>
+      <PartnerPeek state={partnerState} />
       <EntryForm
         key={`${localDateStr}:${existingEntry?.id ?? "draft"}`}
         todaysPrompt={todaysPrompt}

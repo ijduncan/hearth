@@ -1,3 +1,4 @@
+import { loadJournalHistory } from "@/lib/journal-history";
 import { NextResponse } from "next/server";
 import { startOfMonth, endOfMonth, subMonths, format } from "date-fns";
 import { generateMonthlySummary, isOpenAIConfigured } from "@/lib/openai";
@@ -8,6 +9,9 @@ interface EligibleProfile {
   user_id: string;
   display_name: string;
 }
+
+// Large histories may need several complete-history review requests.
+export const maxDuration = 300;
 
 export async function GET(request: Request) {
   if (!verifyBearerSecret(request.headers.get("authorization"), process.env.CRON_SECRET)) {
@@ -110,7 +114,10 @@ export async function GET(request: Request) {
       const summaryText = await generateMonthlySummary(
         entries,
         profile.display_name,
-        profile.user_id
+        profile.user_id,
+        await loadJournalHistory(supabase, profile.user_id),
+        monthStartStr,
+        monthEndStr
       );
       const avgMood =
         entries.reduce((sum, entry) => sum + (entry.mood_score || 0), 0) /

@@ -168,3 +168,21 @@ export function getMoodColor(score: number): string {
   if (score <= 7) return "#84CC16";
   return "#22C55E";
 }
+
+export interface PartnerGlimpse {
+  text: string;
+  entry_date: string;
+  shared_at: string;
+}
+
+export interface PartnerState {
+  connection: {
+    id: string;
+    partner_name: string;
+    available: boolean;
+    partner_glimpse: PartnerGlimpse | null;
+    own_glimpse: PartnerGlimpse | null;
+  } | null;
+  incoming: Array<{ id: string; name: string; expires_at: string }>;
+  outgoing: Array<{ id: string; name: string; expires_at: string }>;
+}

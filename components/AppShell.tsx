@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
   Flame,
+  HeartHandshake,
   BookOpen,
   BarChart3,
   CalendarDays,
@@ -22,6 +23,7 @@ const NAV_ITEMS = [
   { href: "/history", label: "History", icon: CalendarDays },
   { href: "/insights", label: "Insights", icon: BarChart3 },
   { href: "/export", label: "Export", icon: FileText },
+  { href: "/partner", label: "Partner", icon: HeartHandshake },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -115,7 +117,7 @@ export function AppShell({
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex flex-col items-center gap-1 px-3 py-2 text-xs transition-colors ${
+                className={`flex min-w-0 flex-1 flex-col items-center gap-1 px-1 py-2 text-[11px] sm:text-xs transition-colors ${
                   isActive
                     ? "text-primary"
                     : "text-muted-foreground hover:text-foreground"

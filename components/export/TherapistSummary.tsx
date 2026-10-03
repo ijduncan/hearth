@@ -23,7 +23,7 @@ export function TherapistSummary({ summary }: TherapistSummaryProps) {
             Therapist Summary
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            AI-generated clinical summary for your mental health professional
+            AI-generated summary of the selected period, informed by your full saved journal history
           </p>
         </CardHeader>
         <CardContent>

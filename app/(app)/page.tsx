@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import type { PartnerState } from "@/lib/types";
 import { TodayClient } from "@/components/journal/TodayClient";
 
 export default async function TodayPage() {
@@ -22,8 +23,11 @@ export default async function TodayPage() {
     .order("entry_date", { ascending: false })
     .limit(3);
 
+  const { data: partnerState } = await supabase.rpc("get_partner_state");
+
   return (
     <TodayClient
+      partnerState={partnerState as PartnerState | null}
       profile={profile}
       recentEntries={recentEntries || []}
     />

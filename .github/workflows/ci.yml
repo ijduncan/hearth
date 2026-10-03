@@ -34,6 +34,12 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Test
+        run: npm test
+
+      - name: Partner database privacy tests
+        run: npm run test:partner-db
+
       - name: Type-check
         run: npx tsc --noEmit
 

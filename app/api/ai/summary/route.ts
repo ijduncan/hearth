@@ -1,3 +1,4 @@
+import { loadJournalHistory } from "@/lib/journal-history";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -5,6 +6,9 @@ import { generateWeeklySummary, isOpenAIConfigured } from "@/lib/openai";
 import { startOfWeek, endOfWeek, format } from "date-fns";
 import { checkRateLimit, readLimitedJson } from "@/lib/security";
 import { isValidDateString, parseJsonObject } from "@/lib/validation";
+
+// Large histories may need several complete-history review requests.
+export const maxDuration = 300;
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -36,6 +40,9 @@ export async function POST(request: Request) {
   if (body?.date != null && !isValidDateString(body.date)) {
     return NextResponse.json({ error: "date must be YYYY-MM-DD" }, { status: 400 });
   }
+  if (body.regenerate != null && typeof body.regenerate !== "boolean") {
+    return NextResponse.json({ error: "regenerate must be a boolean" }, { status: 400 });
+  }
   const targetDate = body?.date
     ? new Date(`${body.date as string}T00:00:00`)
     : new Date();
@@ -54,7 +61,7 @@ export async function POST(request: Request) {
     .eq("week_start", weekStartStr)
     .single();
 
-  if (existing) {
+  if (existing && !body.regenerate) {
     return NextResponse.json(existing);
   }
 
@@ -145,7 +152,10 @@ export async function POST(request: Request) {
     const summaryText = await generateWeeklySummary(
       entries,
       profile?.display_name || "friend",
-      user.id
+      user.id,
+      await loadJournalHistory(supabase, user.id),
+      weekStartStr,
+      weekEndStr
     );
 
     const avgMood =
